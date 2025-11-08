@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv
+
+# Distribution / packaging
+.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Large binary files (custom rhino3dm builds)
+rhino3dm-*.whl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Geometry files (too large for git)
+*.3dm
+*.stl
+*.step
+*.iges
+
+# OS
+.DS_Store
+Thumbs.db
