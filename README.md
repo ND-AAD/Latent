@@ -224,30 +224,39 @@ latent/
 ├── main.py                     # Application entry point
 ├── launch.py                   # Qt plugin auto-config launcher
 ├── requirements.txt            # All dependencies
-├── app/
+├── CLAUDE.md                   # AI collaboration guide
+├── README.md                   # This file
+│
+├── app/                        # Application code
 │   ├── state/
 │   │   ├── app_state.py        # Centralized state management
 │   │   └── edit_mode.py        # Edit mode & selection tracking
 │   ├── bridge/
 │   │   └── rhino_bridge.py     # HTTP communication with Rhino
 │   ├── geometry/
-│   │   └── subd_display.py     # SubD visualization helpers
+│   │   ├── subd_display.py     # SubD visualization helpers
+│   │   └── curvature.py        # Curvature computation
 │   ├── analysis/               # Mathematical decomposition engines
-│   │   ├── differential.py     # Curvature-based (Week 5)
-│   │   ├── spectral.py         # Laplace-Beltrami eigenfunctions
-│   │   ├── flow.py             # Geodesic drainage basins
-│   │   └── topological.py      # Critical point analysis
+│   │   └── differential_decomposition.py  # Curvature-based (Week 5)
+│   ├── constraints/            # Validation system (Week 7)
 │   └── ui/
 │       ├── viewport_3d.py      # VTK 3D viewport
 │       ├── viewport_layout.py  # Multi-viewport manager
 │       ├── region_list.py      # Region management UI
-│       └── constraint_panel.py # Validation display
-├── rhino/
-│   └── grasshopper_server_control.py  # Grasshopper HTTP server
-└── reference/
-    ├── SubD_Ceramic_Mold_Generation_Specification_v4.md
-    ├── architecture_subd_alt.md
-    └── RhinoUI/                # Rhino 8 control specifications
+│       ├── constraint_panel.py # Validation display
+│       ├── edit_mode_toolbar.py # Edit mode selector
+│       └── picker.py           # VTK picking system
+│
+├── rhino/                      # Grasshopper components
+│   ├── grasshopper_server_control.py  # Main HTTP server
+│   └── grasshopper_manual_push.py     # Manual geometry push
+│
+├── tests/                      # Unit tests (to be added)
+│
+└── docs/                       # Documentation
+    ├── IMPLEMENTATION_ROADMAP.md
+    ├── PROJECT_STATUS.md
+    └── RHINO_BRIDGE_SETUP.md
 ```
 
 ---
@@ -290,7 +299,7 @@ Each lens reveals different aspects of the form's inherent mathematical structur
 
 **Target MVP**: 6 weeks remaining (Week 5 of 10)
 
-See [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) for detailed week-by-week plan.
+See [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for detailed week-by-week plan.
 
 ---
 
@@ -324,10 +333,9 @@ See [reference/SlipCasting_Ceramics_Technical_Reference.md](reference/SlipCastin
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - AI collaboration guidance, architectural principles
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) - Current completion status, priorities
-- [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) - Week-by-week implementation plan
-- [reference/SubD_Ceramic_Mold_Generation_Specification_v4.md](reference/SubD_Ceramic_Mold_Generation_Specification_v4.md) - Complete technical specification
-- [reference/architecture_subd_alt.md](reference/architecture_subd_alt.md) - Architecture evaluation and recommendations
+- [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) - Current completion status, priorities
+- [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) - Week-by-week implementation plan
+- [docs/RHINO_BRIDGE_SETUP.md](docs/RHINO_BRIDGE_SETUP.md) - Rhino/Grasshopper connection setup
 
 ---
 
