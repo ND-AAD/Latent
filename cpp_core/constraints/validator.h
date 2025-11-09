@@ -10,9 +10,6 @@
 
 namespace latent {
 
-// Vector3 type alias (matches Point3D used throughout codebase for directions)
-using Vector3 = Point3D;
-
 // Constraint severity levels
 enum class ConstraintLevel {
     ERROR,      // Physical impossibility - must fix
