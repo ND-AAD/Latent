@@ -648,9 +648,10 @@ class MainWindow(QMainWindow):
 
     def log_debug(self, message):
         """Add message to debug console"""
-        self.debug_console.append(message)
-        # Auto-scroll to bottom
-        self.debug_console.moveCursor(QTextCursor.MoveOperation.End)
+        if hasattr(self, 'debug_console') and self.debug_console:
+            self.debug_console.append(message)
+            # Auto-scroll to bottom
+            self.debug_console.moveCursor(QTextCursor.MoveOperation.End)
     
     def setup_connections(self):
         """Setup signal/slot connections"""
