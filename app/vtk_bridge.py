@@ -38,6 +38,7 @@ vtkPolyData = vtk.vtkPolyData
 vtkQuad = vtk.vtkQuad
 vtkTriangle = vtk.vtkTriangle
 vtkPolygon = vtk.vtkPolygon
+vtkLine = vtk.vtkLine  # For edge rendering
 vtkDataArray = vtk.vtkDataArray
 vtkFloatArray = vtk.vtkFloatArray  # For normals and other float data
 
@@ -59,6 +60,7 @@ vtkLinearSubdivisionFilter = vtk.vtkLinearSubdivisionFilter
 vtkSmoothPolyDataFilter = vtk.vtkSmoothPolyDataFilter
 vtkExtractSelection = vtk.vtkExtractSelection
 vtkGeometryFilter = vtk.vtkGeometryFilter
+vtkTubeFilter = vtk.vtkTubeFilter  # For rendering edges as tubes
 
 # Helpers
 vtkAxesActor = vtk.vtkAxesActor
