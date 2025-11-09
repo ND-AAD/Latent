@@ -3,11 +3,18 @@
 #include <pybind11/numpy.h>
 #include "../geometry/types.h"
 #include "../geometry/subd_evaluator.h"
+#include "../geometry/nurbs_generator.h"
 #include "../analysis/curvature_analyzer.h"
 #include "../constraints/validator.h"
 
 namespace py = pybind11;
 using namespace latent;
+
+// Declare OpenCASCADE Handle types as opaque
+// These types are not directly usable from Python yet
+// Full serialization/conversion will be implemented for Python interop
+// For now, methods that return these types will work but the objects
+// can only be passed back to C++ methods, not inspected from Python
 
 PYBIND11_MODULE(cpp_core, m) {
     m.doc() = "Latent C++ core geometry module - Exact SubD limit surface evaluation";
@@ -518,4 +525,113 @@ PYBIND11_MODULE(cpp_core, m) {
              py::arg("face_indices"),
              py::arg("demolding_direction"),
              py::arg("min_wall_thickness") = 3.0f);
+
+    // ============================================================
+    // NURBS Mold Generation (Day 7, Agent 50)
+    // ============================================================
+
+    // FittingQuality struct
+    py::class_<NURBSMoldGenerator::FittingQuality>(m, "FittingQuality",
+                                                   "Quality metrics for NURBS surface fitting")
+        .def(py::init<>(), "Default constructor")
+        .def_readwrite("max_deviation", &NURBSMoldGenerator::FittingQuality::max_deviation,
+                      "Maximum distance from sample to NURBS (mm)")
+        .def_readwrite("mean_deviation", &NURBSMoldGenerator::FittingQuality::mean_deviation,
+                      "Mean distance from samples to NURBS (mm)")
+        .def_readwrite("rms_deviation", &NURBSMoldGenerator::FittingQuality::rms_deviation,
+                      "RMS distance from samples to NURBS (mm)")
+        .def_readwrite("num_samples", &NURBSMoldGenerator::FittingQuality::num_samples,
+                      "Number of sample points used")
+        .def("__repr__", [](const NURBSMoldGenerator::FittingQuality& q) {
+            return "FittingQuality(max=" + std::to_string(q.max_deviation) +
+                   "mm, mean=" + std::to_string(q.mean_deviation) +
+                   "mm, rms=" + std::to_string(q.rms_deviation) +
+                   "mm, n=" + std::to_string(q.num_samples) + ")";
+        });
+
+    // NURBSMoldGenerator class
+    py::class_<NURBSMoldGenerator>(m, "NURBSMoldGenerator",
+                                   "NURBS mold generator using OpenCASCADE\n\n"
+                                   "Implements the lossless-until-fabrication pipeline:\n"
+                                   "1. Sample exact limit surface from SubDEvaluator\n"
+                                   "2. Fit analytical NURBS through sampled points\n"
+                                   "3. Apply draft angle transformation (exact vector math)\n"
+                                   "4. Create mold solids with Boolean ops (exact)\n\n"
+                                   "NOTE: Currently returns opaque OpenCASCADE types.\n"
+                                   "      Full serialization support will be added for Python interop.")
+        .def(py::init<const SubDEvaluator&>(),
+             "Construct NURBS generator from SubD evaluator\n\n"
+             "Args:\n"
+             "    evaluator: SubDEvaluator (must be initialized)",
+             py::arg("evaluator"))
+
+        .def("fit_nurbs_surface", &NURBSMoldGenerator::fit_nurbs_surface,
+             "Sample exact limit surface and fit NURBS\n\n"
+             "Samples the SubD limit surface at a regular grid using exact\n"
+             "evaluation, then fits an analytical B-spline surface through\n"
+             "the sampled points using OpenCASCADE approximation algorithms.\n\n"
+             "Args:\n"
+             "    face_indices: Control face indices to include in surface\n"
+             "    sample_density: Samples per face dimension (default 50)\n\n"
+             "Returns:\n"
+             "    Handle_Geom_BSplineSurface: Fitted B-spline surface (opaque type)\n\n"
+             "Note: Return type is currently opaque. Use check_fitting_quality\n"
+             "      to verify fit, or serialize to STEP/IGES for Rhino export.",
+             py::arg("face_indices"),
+             py::arg("sample_density") = 50)
+
+        .def("apply_draft_angle", &NURBSMoldGenerator::apply_draft_angle,
+             "Apply draft angle transformation for demolding\n\n"
+             "Applies draft angle by transforming surface points away from\n"
+             "the demolding direction. Points on the parting line remain fixed.\n"
+             "Uses exact vector math to maintain mathematical precision.\n\n"
+             "Args:\n"
+             "    surface: Input B-spline surface (Handle type)\n"
+             "    demolding_direction: Direction of mold removal (Vector3)\n"
+             "    draft_angle_degrees: Draft angle in degrees (typically 2-5°)\n"
+             "    parting_line: Fixed base curve (list of Point3D)\n\n"
+             "Returns:\n"
+             "    Handle_Geom_BSplineSurface: Transformed surface with draft (opaque)",
+             py::arg("surface"),
+             py::arg("demolding_direction"),
+             py::arg("draft_angle_degrees"),
+             py::arg("parting_line"))
+
+        .def("create_mold_solid", &NURBSMoldGenerator::create_mold_solid,
+             "Create solid mold cavity from surface\n\n"
+             "Generates a solid mold by offsetting the surface inward/outward\n"
+             "to create cavity walls. Uses OpenCASCADE Boolean operations to\n"
+             "create a watertight solid suitable for 3D printing.\n\n"
+             "Args:\n"
+             "    surface: B-spline surface defining cavity inner surface\n"
+             "    wall_thickness: Wall thickness in mm (default 40.0)\n\n"
+             "Returns:\n"
+             "    TopoDS_Shape: Solid mold cavity (opaque type)\n\n"
+             "Note: Export to STEP/STL for fabrication using OpenCASCADE I/O.",
+             py::arg("surface"),
+             py::arg("wall_thickness") = 40.0f)
+
+        .def("add_registration_keys", &NURBSMoldGenerator::add_registration_keys,
+             "Add registration features (keys/notches) for mold alignment\n\n"
+             "Adds geometric features to ensure proper alignment when assembling\n"
+             "multi-part molds. Keys on one part fit into notches on the mating part.\n\n"
+             "Args:\n"
+             "    mold: Input mold solid (TopoDS_Shape)\n"
+             "    key_positions: Positions where registration keys should be added\n\n"
+             "Returns:\n"
+             "    TopoDS_Shape: Mold with registration features added (opaque)",
+             py::arg("mold"),
+             py::arg("key_positions"))
+
+        .def("check_fitting_quality", &NURBSMoldGenerator::check_fitting_quality,
+             "Check NURBS fitting quality against exact limit surface\n\n"
+             "Evaluates the fitted NURBS at sample points and compares to exact\n"
+             "limit surface evaluation to ensure fitting accuracy meets tolerances.\n\n"
+             "Args:\n"
+             "    nurbs: Fitted B-spline surface to check (Handle type)\n"
+             "    face_indices: Original face indices used for fitting\n\n"
+             "Returns:\n"
+             "    FittingQuality: Quality metrics for the fitted surface",
+             py::arg("nurbs"),
+             py::arg("face_indices"));
 }
