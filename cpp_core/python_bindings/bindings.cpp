@@ -205,5 +205,72 @@ PYBIND11_MODULE(cpp_core, m) {
              &SubDEvaluator::get_control_face_count,
              "Get number of faces in control cage\n\n"
              "Returns:\n"
-             "    int: Face count");
+             "    int: Face count")
+
+        // ============================================================
+        // Advanced Limit Surface Evaluation (Day 2, Agent 10)
+        // ============================================================
+
+        .def("evaluate_limit_with_derivatives",
+             [](const SubDEvaluator& eval, int face_idx, float u, float v) {
+                 Point3D position, du, dv;
+                 eval.evaluate_limit_with_derivatives(face_idx, u, v,
+                                                     position, du, dv);
+                 return py::make_tuple(position, du, dv);
+             },
+             "Evaluate limit position and first derivatives\n\n"
+             "Args:\n"
+             "    face_index: Control face index\n"
+             "    u: Parametric coordinate (0-1)\n"
+             "    v: Parametric coordinate (0-1)\n\n"
+             "Returns:\n"
+             "    tuple: (position, du, dv) - Point3D for position and derivatives",
+             py::arg("face_index"), py::arg("u"), py::arg("v"))
+
+        .def("evaluate_limit_with_second_derivatives",
+             [](const SubDEvaluator& eval, int face_idx, float u, float v) {
+                 Point3D pos, du, dv, duu, dvv, duv;
+                 eval.evaluate_limit_with_second_derivatives(
+                     face_idx, u, v, pos, du, dv, duu, dvv, duv
+                 );
+                 return py::make_tuple(pos, du, dv, duu, dvv, duv);
+             },
+             "Evaluate limit position with first and second derivatives\n\n"
+             "Args:\n"
+             "    face_index: Control face index\n"
+             "    u: Parametric coordinate (0-1)\n"
+             "    v: Parametric coordinate (0-1)\n\n"
+             "Returns:\n"
+             "    tuple: (pos, du, dv, duu, dvv, duv) - Point3D for all derivatives",
+             py::arg("face_index"), py::arg("u"), py::arg("v"))
+
+        .def("batch_evaluate_limit",
+             &SubDEvaluator::batch_evaluate_limit,
+             "Batch evaluate multiple points on limit surface\n\n"
+             "More efficient than individual calls.\n\n"
+             "Args:\n"
+             "    face_indices: List of face indices\n"
+             "    params_u: List of u parameters\n"
+             "    params_v: List of v parameters\n\n"
+             "Returns:\n"
+             "    TessellationResult: Evaluated points with normals",
+             py::arg("face_indices"),
+             py::arg("params_u"),
+             py::arg("params_v"))
+
+        .def("compute_tangent_frame",
+             [](const SubDEvaluator& eval, int face_idx, float u, float v) {
+                 Point3D tangent_u, tangent_v, normal;
+                 eval.compute_tangent_frame(face_idx, u, v,
+                                           tangent_u, tangent_v, normal);
+                 return py::make_tuple(tangent_u, tangent_v, normal);
+             },
+             "Compute tangent frame (tangent_u, tangent_v, normal)\n\n"
+             "Args:\n"
+             "    face_index: Control face index\n"
+             "    u: Parametric coordinate (0-1)\n"
+             "    v: Parametric coordinate (0-1)\n\n"
+             "Returns:\n"
+             "    tuple: (tangent_u, tangent_v, normal) - normalized Point3D vectors",
+             py::arg("face_index"), py::arg("u"), py::arg("v"));
 }

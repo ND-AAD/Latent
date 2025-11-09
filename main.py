@@ -10,9 +10,10 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QPushButton, QLabel, QGroupBox,
-    QRadioButton, QButtonGroup, QMessageBox, QTextEdit
+    QRadioButton, QButtonGroup, QMessageBox, QTextEdit,
+    QDockWidget, QToolBar
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QAction, QTextCursor
 
 # Add app directory to path
@@ -21,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import our components
 from app.ui.viewport_3d import Viewport3D
 from app.ui.viewport_layout import ViewportLayoutManager, ViewportLayout, ViewType
-from app.ui.region_list import RegionListWidget
+from app.ui.region_list_widget import RegionListWidget
+from app.ui.analysis_panel import AnalysisPanel
 from app.ui.constraint_panel import ConstraintPanel
 from app.ui.edit_mode_toolbar import EditModeToolBar, EditModeWidget
 from app.bridge.rhino_bridge import RhinoBridge
@@ -29,7 +31,8 @@ from app.bridge.geometry_receiver import GeometryReceiver
 from app.bridge.subd_fetcher import SubDFetcher
 from app.bridge.live_bridge import LiveBridge
 from app.geometry.subd_display import SubDDisplayManager
-from app.state.app_state import ApplicationState, ParametricRegion
+from app.state.app_state import ApplicationState
+from app.state.parametric_region import ParametricRegion
 from app.state.edit_mode import EditMode
 import cpp_core
 
@@ -127,31 +130,20 @@ class MainWindow(QMainWindow):
 
         # Create edit mode toolbar
         self.edit_mode_toolbar = EditModeToolBar(self)
-        self.addToolBar(self.edit_mode_toolbar)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.edit_mode_toolbar)
 
-        # Create central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        # Create analysis toolbar
+        self.create_analysis_toolbar()
 
-        # Main layout with splitter
-        main_layout = QHBoxLayout(central_widget)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter)
-
-        # Left panel - Multi-Viewport Layout
+        # Create central widget - Viewport Layout
         self.viewport_layout = ViewportLayoutManager()
-        splitter.addWidget(self.viewport_layout)
+        self.setCentralWidget(self.viewport_layout)
 
-        # Connect debug signals from all viewports (will be connected as they're created)
         # Store reference to primary viewport for compatibility
         self.viewport = None
 
-        # Right panel - Controls
-        right_panel = self.create_control_panel()
-        splitter.addWidget(right_panel)
-
-        # Set splitter sizes (70% viewport, 30% controls)
-        splitter.setSizes([980, 420])
+        # Create dockable panels
+        self.create_dock_widgets()
 
         # Status bar
         self.status_bar = QStatusBar()
@@ -170,6 +162,9 @@ class MainWindow(QMainWindow):
 
         # Create menus (after viewport is created)
         self.create_menus()
+
+        # Restore previous layout if exists
+        self.restore_layout()
         
     def create_menus(self):
         """Create application menus"""
@@ -302,7 +297,185 @@ class MainWindow(QMainWindow):
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
-        
+
+    def create_analysis_toolbar(self):
+        """Create analysis toolbar with quick actions"""
+        toolbar = QToolBar("Analysis Tools")
+        toolbar.setMovable(True)
+        toolbar.setFloatable(False)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+
+        # Quick lens selection buttons
+        toolbar.addWidget(QLabel("Quick Lens: "))
+        toolbar.addSeparator()
+
+        flow_action = QAction("🌊 Flow", self)
+        flow_action.setToolTip("Run Flow (Geodesic) analysis")
+        flow_action.triggered.connect(lambda: self.run_analysis("Flow"))
+        toolbar.addAction(flow_action)
+
+        spectral_action = QAction("〰️ Spectral", self)
+        spectral_action.setToolTip("Run Spectral (Vibration) analysis")
+        spectral_action.triggered.connect(lambda: self.run_analysis("Spectral"))
+        toolbar.addAction(spectral_action)
+
+        curvature_action = QAction("📐 Curvature", self)
+        curvature_action.setToolTip("Run Curvature (Ridge/Valley) analysis")
+        curvature_action.triggered.connect(lambda: self.run_analysis("Curvature"))
+        toolbar.addAction(curvature_action)
+
+        topo_action = QAction("🔷 Topological", self)
+        topo_action.setToolTip("Run Topological analysis")
+        topo_action.triggered.connect(lambda: self.run_analysis("Topological"))
+        toolbar.addAction(topo_action)
+
+        toolbar.addSeparator()
+
+        # Mold generation
+        generate_action = QAction("🔨 Generate Molds", self)
+        generate_action.setToolTip("Generate mold geometry from pinned regions")
+        generate_action.triggered.connect(self.generate_molds)
+        toolbar.addAction(generate_action)
+        self.toolbar_generate_action = generate_action
+
+        # Send to Rhino
+        send_action = QAction("📤 Send to Rhino", self)
+        send_action.setToolTip("Send generated molds to Rhino")
+        send_action.triggered.connect(self.send_to_rhino)
+        toolbar.addAction(send_action)
+        self.toolbar_send_action = send_action
+
+        self.analysis_toolbar = toolbar
+
+    def create_dock_widgets(self):
+        """Create dockable panels for UI components"""
+        # Analysis Panel (right side, top)
+        self.analysis_panel = AnalysisPanel()
+        analysis_dock = QDockWidget("Analysis", self)
+        analysis_dock.setWidget(self.analysis_panel)
+        analysis_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
+                                       Qt.DockWidgetArea.RightDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, analysis_dock)
+        self.analysis_dock = analysis_dock
+
+        # Region List Panel (right side, middle)
+        self.region_list = RegionListWidget()
+        region_dock = QDockWidget("Regions", self)
+        region_dock.setWidget(self.region_list)
+        region_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
+                                     Qt.DockWidgetArea.RightDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, region_dock)
+        self.region_dock = region_dock
+
+        # Constraint Panel (right side, below regions)
+        self.constraint_panel = ConstraintPanel()
+        constraint_dock = QDockWidget("Constraints", self)
+        constraint_dock.setWidget(self.constraint_panel)
+        constraint_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
+                                         Qt.DockWidgetArea.RightDockWidgetArea |
+                                         Qt.DockWidgetArea.BottomDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, constraint_dock)
+        self.constraint_dock = constraint_dock
+
+        # Debug Console (bottom)
+        debug_widget = QWidget()
+        debug_layout = QVBoxLayout(debug_widget)
+        debug_layout.setContentsMargins(5, 5, 5, 5)
+
+        self.debug_console = QTextEdit()
+        self.debug_console.setReadOnly(True)
+        self.debug_console.setMaximumHeight(150)
+        self.debug_console.setStyleSheet(
+            "font-family: monospace; font-size: 10px; "
+            "background-color: #1E1E1E; color: #D4D4D4;"
+        )
+        debug_layout.addWidget(self.debug_console)
+
+        # Test button
+        test_btn = QPushButton("Test Debug")
+        test_btn.clicked.connect(lambda: self.log_debug("✅ Debug console is working!"))
+        test_btn.setMaximumWidth(100)
+        debug_layout.addWidget(test_btn)
+
+        debug_dock = QDockWidget("Debug Console", self)
+        debug_dock.setWidget(debug_widget)
+        debug_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea |
+                                    Qt.DockWidgetArea.LeftDockWidgetArea |
+                                    Qt.DockWidgetArea.RightDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, debug_dock)
+        self.debug_dock = debug_dock
+
+        # Stack the right-side docks vertically
+        self.tabifyDockWidget(constraint_dock, analysis_dock)
+        analysis_dock.raise_()  # Bring analysis to front
+
+        # Add menu actions to show/hide docks
+        self.add_dock_menu_actions()
+
+    def add_dock_menu_actions(self):
+        """Add menu actions for showing/hiding dock widgets"""
+        # Add to View menu
+        view_menu = self.menuBar().actions()[3].menu()  # View is 4th menu
+        view_menu.addSeparator()
+
+        # Add toggle actions for each dock
+        view_menu.addAction(self.analysis_dock.toggleViewAction())
+        view_menu.addAction(self.region_dock.toggleViewAction())
+        view_menu.addAction(self.constraint_dock.toggleViewAction())
+        view_menu.addAction(self.debug_dock.toggleViewAction())
+
+        view_menu.addSeparator()
+
+        # Reset layout action
+        reset_layout_action = QAction("Reset Panel Layout", self)
+        reset_layout_action.triggered.connect(self.reset_panel_layout)
+        view_menu.addAction(reset_layout_action)
+
+    def reset_panel_layout(self):
+        """Reset dock widget layout to default"""
+        # Remove all docks
+        self.removeDockWidget(self.analysis_dock)
+        self.removeDockWidget(self.region_dock)
+        self.removeDockWidget(self.constraint_dock)
+        self.removeDockWidget(self.debug_dock)
+
+        # Re-add in default positions
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.analysis_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.region_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.constraint_dock)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.debug_dock)
+
+        # Stack analysis and constraint
+        self.tabifyDockWidget(self.constraint_dock, self.analysis_dock)
+        self.analysis_dock.raise_()
+
+        # Show all docks
+        self.analysis_dock.show()
+        self.region_dock.show()
+        self.constraint_dock.show()
+        self.debug_dock.show()
+
+        self.status_bar.showMessage("Panel layout reset to default", 2000)
+
+    def save_layout(self):
+        """Save window layout and dock positions"""
+        settings = QSettings("ComputationalCeramics", "CeramicMoldAnalyzer")
+        settings.setValue("geometry", self.saveGeometry())
+        settings.setValue("windowState", self.saveState())
+        self.log_debug("💾 Layout saved")
+
+    def restore_layout(self):
+        """Restore window layout and dock positions"""
+        settings = QSettings("ComputationalCeramics", "CeramicMoldAnalyzer")
+        geometry = settings.value("geometry")
+        state = settings.value("windowState")
+
+        if geometry:
+            self.restoreGeometry(geometry)
+        if state:
+            self.restoreState(state)
+            self.log_debug("📂 Layout restored")
+
     def create_control_panel(self):
         """Create the right control panel"""
         panel = QWidget()
@@ -402,6 +575,10 @@ class MainWindow(QMainWindow):
     
     def setup_connections(self):
         """Setup signal/slot connections"""
+        # Analysis panel connections
+        self.analysis_panel.analysis_requested.connect(self.run_analysis)
+        self.analysis_panel.lens_changed.connect(self.on_lens_changed)
+
         # Region list connections
         self.region_list.region_selected.connect(self.on_region_selected)
         self.region_list.region_pinned.connect(self.on_region_pinned)
@@ -707,6 +884,11 @@ class MainWindow(QMainWindow):
         """Handle regions update from state"""
         self.region_list.set_regions(regions)
         self.viewport_layout.display_regions(regions)
+
+    def on_lens_changed(self, lens_type):
+        """Handle lens selection change from analysis panel"""
+        self.state.set_current_lens(lens_type)
+        self.log_debug(f"🔍 Lens changed to: {lens_type}")
     
     def on_region_selected(self, region_id):
         """Handle region selection"""
@@ -805,15 +987,16 @@ class MainWindow(QMainWindow):
     
     def save_session(self):
         """Save current session"""
+        # Save window layout
+        self.save_layout()
+
+        # TODO: Save session data (regions, pin states, etc.)
         QMessageBox.information(
-            self, 
-            "Save Session", 
-            "Session saving will be implemented.\n\n"
-            "This will save:\n"
-            "• Current regions\n"
-            "• Pin states\n"
-            "• Analysis settings\n"
-            "• Generated molds"
+            self,
+            "Save Session",
+            "Window layout saved!\n\n"
+            "Session data saving (regions, pin states, etc.)\n"
+            "will be implemented in the future."
         )
     
     def undo(self):
@@ -856,6 +1039,9 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close"""
+        # Save layout before closing
+        self.save_layout()
+
         # Stop live bridge
         if hasattr(self, 'live_bridge'):
             self.live_bridge.stop()

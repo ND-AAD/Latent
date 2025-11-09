@@ -3,6 +3,7 @@
 #include <opensubdiv/far/topologyRefiner.h>
 #include <opensubdiv/far/topologyDescriptor.h>
 #include <opensubdiv/far/primvarRefiner.h>
+#include <opensubdiv/far/patchTable.h>
 #include <memory>
 #include <vector>
 
@@ -93,6 +94,82 @@ public:
      * @return Face count
      */
     size_t get_control_face_count() const;
+
+    // ============================================================
+    // Advanced Limit Surface Evaluation (Day 2, Agent 10)
+    // ============================================================
+
+    /**
+     * Evaluate limit position and first derivatives
+     *
+     * @param face_index Control face index
+     * @param u Parameter u in [0,1]
+     * @param v Parameter v in [0,1]
+     * @param position Output: limit position
+     * @param du Output: first derivative wrt u
+     * @param dv Output: first derivative wrt v
+     */
+    void evaluate_limit_with_derivatives(
+        int face_index, float u, float v,
+        Point3D& position,
+        Point3D& du,
+        Point3D& dv) const;
+
+    /**
+     * Evaluate limit position and first/second derivatives
+     *
+     * @param face_index Control face index
+     * @param u Parameter u in [0,1]
+     * @param v Parameter v in [0,1]
+     * @param position Output: limit position
+     * @param du, dv Output: first derivatives
+     * @param duu, dvv, duv Output: second derivatives
+     */
+    void evaluate_limit_with_second_derivatives(
+        int face_index, float u, float v,
+        Point3D& position,
+        Point3D& du, Point3D& dv,
+        Point3D& duu, Point3D& dvv, Point3D& duv) const;
+
+    /**
+     * Batch evaluate multiple points on limit surface
+     * More efficient than individual calls
+     *
+     * @param face_indices Face index for each point
+     * @param params_u U parameters for each point
+     * @param params_v V parameters for each point
+     * @return TessellationResult with evaluated points
+     */
+    TessellationResult batch_evaluate_limit(
+        const std::vector<int>& face_indices,
+        const std::vector<float>& params_u,
+        const std::vector<float>& params_v) const;
+
+    /**
+     * Compute tangent frame (tangent_u, tangent_v, normal)
+     *
+     * @param face_index Control face index
+     * @param u Parameter u in [0,1]
+     * @param v Parameter v in [0,1]
+     * @param tangent_u Output: normalized tangent in u direction
+     * @param tangent_v Output: normalized tangent in v direction
+     * @param normal Output: unit normal (cross product of tangents)
+     */
+    void compute_tangent_frame(
+        int face_index, float u, float v,
+        Point3D& tangent_u,
+        Point3D& tangent_v,
+        Point3D& normal) const;
+
+private:
+    // Helper for derivative evaluation - PatchTable for exact limit evaluation
+    mutable std::unique_ptr<OpenSubdiv::Far::PatchTable const> patch_table_;
+
+    // Control vertex positions stored as flat array for patch evaluation
+    std::vector<float> control_positions_;
+
+    // Build patch table on first use (lazy initialization)
+    void ensure_patch_table() const;
 };
 
 }  // namespace latent

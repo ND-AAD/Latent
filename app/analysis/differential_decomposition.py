@@ -26,7 +26,7 @@ import scipy.ndimage as ndimage
 from collections import defaultdict
 
 from app.geometry.curvature import MeshCurvatureEstimator, CurvatureData
-from app.state.app_state import ParametricRegion
+from app.state.parametric_region import ParametricRegion
 
 
 @dataclass

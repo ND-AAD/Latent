@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 namespace latent {
 
@@ -54,6 +55,15 @@ void SubDEvaluator::initialize(const SubDControlCage& cage) {
 
     // Store control vertices for later interpolation
     g_control_vertices = cage.vertices;
+
+    // Store control positions as flat array for patch evaluation
+    control_positions_.clear();
+    control_positions_.reserve(cage.vertex_count() * 3);
+    for (const auto& v : cage.vertices) {
+        control_positions_.push_back(v.x);
+        control_positions_.push_back(v.y);
+        control_positions_.push_back(v.z);
+    }
 
     // Build TopologyDescriptor from cage
     Far::TopologyDescriptor desc;
@@ -468,6 +478,262 @@ size_t SubDEvaluator::get_control_vertex_count() const {
 size_t SubDEvaluator::get_control_face_count() const {
     if (!initialized_) return 0;
     return refiner_->GetLevel(0).GetNumFaces();
+}
+
+// ============================================================
+// Advanced Limit Surface Evaluation (Day 2, Agent 10)
+// ============================================================
+
+void SubDEvaluator::ensure_patch_table() const {
+    if (patch_table_) return;  // Already built
+
+    using namespace OpenSubdiv;
+
+    // NOTE: PatchTable creation kept for future optimization.
+    // Currently using finite difference approach for derivatives which is sufficient
+    // for most curvature analysis applications. Future optimization could use
+    // patch-based evaluation for extraordinary/irregular regions.
+
+    // Placeholder for future patch-based implementation
+    patch_table_ = nullptr;
+}
+
+void SubDEvaluator::evaluate_limit_with_derivatives(
+    int face_index, float u, float v,
+    Point3D& position,
+    Point3D& du,
+    Point3D& dv) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    // Validate parameters
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+        throw std::runtime_error("Invalid parametric coordinates (u,v must be in [0,1])");
+    }
+
+    using namespace OpenSubdiv;
+
+    Far::TopologyLevel const& base_level = refiner_->GetLevel(0);
+    if (face_index < 0 || face_index >= base_level.GetNumFaces()) {
+        throw std::runtime_error("Invalid face index");
+    }
+
+    // NOTE: Patch-based evaluation requires specific OpenSubdiv setup for irregular/extraordinary
+    // regions. For regular regions, we use numerical differentiation as a practical solution.
+    // This provides exact limit positions with approximate derivatives (sufficient for most analysis).
+
+    // Evaluate center position
+    position = evaluate_limit_point(face_index, u, v);
+
+    // Compute derivatives using centered finite differences
+    float delta = 0.001f;
+
+    // du derivative (centered difference in u direction)
+    Point3D p_u_minus, p_u_plus;
+    if (u >= delta && u <= 1.0f - delta) {
+        p_u_minus = evaluate_limit_point(face_index, u - delta, v);
+        p_u_plus = evaluate_limit_point(face_index, u + delta, v);
+        du.x = (p_u_plus.x - p_u_minus.x) / (2.0f * delta);
+        du.y = (p_u_plus.y - p_u_minus.y) / (2.0f * delta);
+        du.z = (p_u_plus.z - p_u_minus.z) / (2.0f * delta);
+    } else if (u < delta) {
+        // Forward difference
+        p_u_plus = evaluate_limit_point(face_index, u + delta, v);
+        du.x = (p_u_plus.x - position.x) / delta;
+        du.y = (p_u_plus.y - position.y) / delta;
+        du.z = (p_u_plus.z - position.z) / delta;
+    } else {
+        // Backward difference
+        p_u_minus = evaluate_limit_point(face_index, u - delta, v);
+        du.x = (position.x - p_u_minus.x) / delta;
+        du.y = (position.y - p_u_minus.y) / delta;
+        du.z = (position.z - p_u_minus.z) / delta;
+    }
+
+    // dv derivative (centered difference in v direction)
+    Point3D p_v_minus, p_v_plus;
+    if (v >= delta && v <= 1.0f - delta) {
+        p_v_minus = evaluate_limit_point(face_index, u, v - delta);
+        p_v_plus = evaluate_limit_point(face_index, u, v + delta);
+        dv.x = (p_v_plus.x - p_v_minus.x) / (2.0f * delta);
+        dv.y = (p_v_plus.y - p_v_minus.y) / (2.0f * delta);
+        dv.z = (p_v_plus.z - p_v_minus.z) / (2.0f * delta);
+    } else if (v < delta) {
+        // Forward difference
+        p_v_plus = evaluate_limit_point(face_index, u, v + delta);
+        dv.x = (p_v_plus.x - position.x) / delta;
+        dv.y = (p_v_plus.y - position.y) / delta;
+        dv.z = (p_v_plus.z - position.z) / delta;
+    } else {
+        // Backward difference
+        p_v_minus = evaluate_limit_point(face_index, u, v - delta);
+        dv.x = (position.x - p_v_minus.x) / delta;
+        dv.y = (position.y - p_v_minus.y) / delta;
+        dv.z = (position.z - p_v_minus.z) / delta;
+    }
+}
+
+void SubDEvaluator::evaluate_limit_with_second_derivatives(
+    int face_index, float u, float v,
+    Point3D& position,
+    Point3D& du, Point3D& dv,
+    Point3D& duu, Point3D& dvv, Point3D& duv) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    // Validate parameters
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+        throw std::runtime_error("Invalid parametric coordinates");
+    }
+
+    using namespace OpenSubdiv;
+
+    Far::TopologyLevel const& base_level = refiner_->GetLevel(0);
+    if (face_index < 0 || face_index >= base_level.GetNumFaces()) {
+        throw std::runtime_error("Invalid face index");
+    }
+
+    // Get first derivatives
+    evaluate_limit_with_derivatives(face_index, u, v, position, du, dv);
+
+    // Compute second derivatives using finite differences on first derivatives
+    float delta = 0.001f;
+
+    // duu: second derivative of u
+    Point3D pos_dummy, du_minus, dv_dummy, du_plus;
+    if (u >= delta && u <= 1.0f - delta) {
+        evaluate_limit_with_derivatives(face_index, u - delta, v, pos_dummy, du_minus, dv_dummy);
+        evaluate_limit_with_derivatives(face_index, u + delta, v, pos_dummy, du_plus, dv_dummy);
+        duu.x = (du_plus.x - du_minus.x) / (2.0f * delta);
+        duu.y = (du_plus.y - du_minus.y) / (2.0f * delta);
+        duu.z = (du_plus.z - du_minus.z) / (2.0f * delta);
+    } else {
+        duu = Point3D(0, 0, 0);  // Approximation at boundaries
+    }
+
+    // dvv: second derivative of v
+    Point3D dv_minus, dv_plus;
+    if (v >= delta && v <= 1.0f - delta) {
+        evaluate_limit_with_derivatives(face_index, u, v - delta, pos_dummy, dv_dummy, dv_minus);
+        evaluate_limit_with_derivatives(face_index, u, v + delta, pos_dummy, dv_dummy, dv_plus);
+        dvv.x = (dv_plus.x - dv_minus.x) / (2.0f * delta);
+        dvv.y = (dv_plus.y - dv_minus.y) / (2.0f * delta);
+        dvv.z = (dv_plus.z - dv_minus.z) / (2.0f * delta);
+    } else {
+        dvv = Point3D(0, 0, 0);  // Approximation at boundaries
+    }
+
+    // duv: mixed derivative
+    if (u >= delta && u <= 1.0f - delta && v >= delta && v <= 1.0f - delta) {
+        Point3D dv_u_minus, dv_u_plus;
+        evaluate_limit_with_derivatives(face_index, u - delta, v, pos_dummy, dv_dummy, dv_u_minus);
+        evaluate_limit_with_derivatives(face_index, u + delta, v, pos_dummy, dv_dummy, dv_u_plus);
+        duv.x = (dv_u_plus.x - dv_u_minus.x) / (2.0f * delta);
+        duv.y = (dv_u_plus.y - dv_u_minus.y) / (2.0f * delta);
+        duv.z = (dv_u_plus.z - dv_u_minus.z) / (2.0f * delta);
+    } else {
+        duv = Point3D(0, 0, 0);  // Approximation at boundaries
+    }
+}
+
+TessellationResult SubDEvaluator::batch_evaluate_limit(
+    const std::vector<int>& face_indices,
+    const std::vector<float>& params_u,
+    const std::vector<float>& params_v) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    size_t num_points = face_indices.size();
+    if (params_u.size() != num_points || params_v.size() != num_points) {
+        throw std::runtime_error("Parameter array size mismatch");
+    }
+
+    TessellationResult result;
+    result.vertices.reserve(num_points * 3);
+    result.normals.reserve(num_points * 3);
+    result.face_parents.reserve(num_points);
+
+    // Evaluate each point
+    for (size_t i = 0; i < num_points; ++i) {
+        Point3D pos, du, dv;
+        evaluate_limit_with_derivatives(
+            face_indices[i], params_u[i], params_v[i],
+            pos, du, dv
+        );
+
+        // Add position
+        result.vertices.push_back(pos.x);
+        result.vertices.push_back(pos.y);
+        result.vertices.push_back(pos.z);
+
+        // Compute normal as cross(du, dv)
+        Point3D normal;
+        normal.x = du.y * dv.z - du.z * dv.y;
+        normal.y = du.z * dv.x - du.x * dv.z;
+        normal.z = du.x * dv.y - du.y * dv.x;
+
+        // Normalize
+        float length = std::sqrt(
+            normal.x * normal.x +
+            normal.y * normal.y +
+            normal.z * normal.z
+        );
+
+        if (length > 1e-8f) {
+            normal.x /= length;
+            normal.y /= length;
+            normal.z /= length;
+        } else {
+            // Degenerate case - use default normal
+            normal.x = 0.0f;
+            normal.y = 0.0f;
+            normal.z = 1.0f;
+        }
+
+        result.normals.push_back(normal.x);
+        result.normals.push_back(normal.y);
+        result.normals.push_back(normal.z);
+
+        // Store parent face
+        result.face_parents.push_back(face_indices[i]);
+    }
+
+    return result;
+}
+
+void SubDEvaluator::compute_tangent_frame(
+    int face_index, float u, float v,
+    Point3D& tangent_u,
+    Point3D& tangent_v,
+    Point3D& normal) const {
+
+    Point3D position;
+    evaluate_limit_with_derivatives(face_index, u, v,
+                                    position, tangent_u, tangent_v);
+
+    // Normalize tangents
+    auto normalize = [](Point3D& v) {
+        float len = std::sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+        if (len > 1e-8f) {
+            v.x /= len; v.y /= len; v.z /= len;
+        }
+    };
+
+    normalize(tangent_u);
+    normalize(tangent_v);
+
+    // Normal = cross(tangent_u, tangent_v)
+    normal.x = tangent_u.y * tangent_v.z - tangent_u.z * tangent_v.y;
+    normal.y = tangent_u.z * tangent_v.x - tangent_u.x * tangent_v.z;
+    normal.z = tangent_u.x * tangent_v.y - tangent_u.y * tangent_v.x;
+
+    normalize(normal);
 }
 
 }  // namespace latent

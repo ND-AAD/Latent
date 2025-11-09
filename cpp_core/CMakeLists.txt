@@ -45,9 +45,17 @@ if(OPENSUBDIV_INCLUDE_DIR AND OPENSUBDIV_CPU_LIBRARY)
     message(STATUS "Found OpenSubdiv via manual search")
     message(STATUS "  Include: ${OPENSUBDIV_INCLUDE_DIR}")
     message(STATUS "  CPU Library: ${OPENSUBDIV_CPU_LIBRARY}")
-    message(STATUS "  GPU Library: ${OPENSUBDIV_GPU_LIBRARY}")
+
     set(OPENSUBDIV_INCLUDE_DIRS ${OPENSUBDIV_INCLUDE_DIR})
-    set(OPENSUBDIV_LIBRARIES ${OPENSUBDIV_CPU_LIBRARY} ${OPENSUBDIV_GPU_LIBRARY})
+    set(OPENSUBDIV_LIBRARIES ${OPENSUBDIV_CPU_LIBRARY})
+
+    if(OPENSUBDIV_GPU_LIBRARY)
+        message(STATUS "  GPU Library: ${OPENSUBDIV_GPU_LIBRARY}")
+        list(APPEND OPENSUBDIV_LIBRARIES ${OPENSUBDIV_GPU_LIBRARY})
+    else()
+        message(STATUS "  GPU Library: Not found (CPU only)")
+    endif()
+
     set(OPENSUBDIV_FOUND TRUE)
     set(OpenSubdiv_FOUND TRUE)  # Set both variables for compatibility
 else()
@@ -137,9 +145,12 @@ target_link_libraries(cpp_core_py PRIVATE cpp_core_static)
 # Set output name to cpp_core (Python import name)
 set_target_properties(cpp_core_py PROPERTIES OUTPUT_NAME cpp_core)
 
-# Test executable
+# Test executables
 add_executable(test_subd_evaluator test_subd_evaluator.cpp)
 target_link_libraries(test_subd_evaluator PRIVATE cpp_core_static)
+
+add_executable(test_limit_evaluation test_limit_evaluation.cpp)
+target_link_libraries(test_limit_evaluation PRIVATE cpp_core_static)
 
 # Install targets
 install(TARGETS cpp_core_static ARCHIVE DESTINATION lib)
