@@ -67,7 +67,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import unittest
 import numpy as np
-import latent_core
+import cpp_core
 from app.bridge.subd_fetcher import SubDFetcher
 from app.geometry.subd_display import SubDDisplayManager
 
@@ -76,21 +76,21 @@ class TestCppCore(unittest.TestCase):
 
     def test_point3d(self):
         """Test Point3D struct."""
-        p = latent_core.Point3D(1.0, 2.0, 3.0)
+        p = cpp_core.Point3D(1.0, 2.0, 3.0)
         self.assertEqual(p.x, 1.0)
         self.assertEqual(p.y, 2.0)
         self.assertEqual(p.z, 3.0)
 
     def test_control_cage(self):
         """Test SubDControlCage struct."""
-        cage = latent_core.SubDControlCage()
+        cage = cpp_core.SubDControlCage()
 
         # Add vertices
         cage.vertices = [
-            latent_core.Point3D(0, 0, 0),
-            latent_core.Point3D(1, 0, 0),
-            latent_core.Point3D(1, 1, 0),
-            latent_core.Point3D(0, 1, 0)
+            cpp_core.Point3D(0, 0, 0),
+            cpp_core.Point3D(1, 0, 0),
+            cpp_core.Point3D(1, 1, 0),
+            cpp_core.Point3D(0, 1, 0)
         ]
 
         self.assertEqual(cage.vertex_count(), 4)
@@ -103,7 +103,7 @@ class TestCppCore(unittest.TestCase):
         """Test SubDEvaluator initialization."""
         cage = self._create_quad_cage()
 
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         self.assertFalse(evaluator.is_initialized())
 
         evaluator.initialize(cage)
@@ -114,7 +114,7 @@ class TestCppCore(unittest.TestCase):
     def test_tessellation(self):
         """Test tessellation at multiple levels."""
         cage = self._create_quad_cage()
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         evaluator.initialize(cage)
 
         for level in [1, 2, 3]:
@@ -137,7 +137,7 @@ class TestCppCore(unittest.TestCase):
     def test_limit_evaluation(self):
         """Test exact limit surface evaluation."""
         cage = self._create_quad_cage()
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         evaluator.initialize(cage)
 
         # Evaluate at face center
@@ -158,12 +158,12 @@ class TestCppCore(unittest.TestCase):
 
     def _create_quad_cage(self):
         """Helper to create simple quad cage."""
-        cage = latent_core.SubDControlCage()
+        cage = cpp_core.SubDControlCage()
         cage.vertices = [
-            latent_core.Point3D(0, 0, 0),
-            latent_core.Point3D(1, 0, 0),
-            latent_core.Point3D(1, 1, 0),
-            latent_core.Point3D(0, 1, 0)
+            cpp_core.Point3D(0, 0, 0),
+            cpp_core.Point3D(1, 0, 0),
+            cpp_core.Point3D(1, 1, 0),
+            cpp_core.Point3D(0, 1, 0)
         ]
         cage.faces = [[0, 1, 2, 3]]
         return cage
@@ -223,7 +223,7 @@ class TestVTKDisplay(unittest.TestCase):
         """Test creating VTK actor from tessellation."""
         # Create simple tessellation
         cage = self._create_quad_cage()
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         evaluator.initialize(cage)
         result = evaluator.tessellate(2)
 
@@ -250,7 +250,7 @@ class TestVTKDisplay(unittest.TestCase):
     def test_bounding_box(self):
         """Test bounding box computation."""
         cage = self._create_quad_cage()
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         evaluator.initialize(cage)
         result = evaluator.tessellate(2)
 
@@ -268,12 +268,12 @@ class TestVTKDisplay(unittest.TestCase):
 
     def _create_quad_cage(self):
         """Helper to create simple quad cage."""
-        cage = latent_core.SubDControlCage()
+        cage = cpp_core.SubDControlCage()
         cage.vertices = [
-            latent_core.Point3D(0, 0, 0),
-            latent_core.Point3D(1, 0, 0),
-            latent_core.Point3D(1, 1, 0),
-            latent_core.Point3D(0, 1, 0)
+            cpp_core.Point3D(0, 0, 0),
+            cpp_core.Point3D(1, 0, 0),
+            cpp_core.Point3D(1, 1, 0),
+            cpp_core.Point3D(0, 1, 0)
         ]
         cage.faces = [[0, 1, 2, 3]]
         return cage
@@ -298,7 +298,7 @@ class TestEndToEnd(unittest.TestCase):
         print(f"\n  Step 1: Fetched {cage.vertex_count()} vertices ✅")
 
         # 2. Initialize evaluator
-        evaluator = latent_core.SubDEvaluator()
+        evaluator = cpp_core.SubDEvaluator()
         evaluator.initialize(cage)
 
         self.assertTrue(evaluator.is_initialized())
@@ -381,7 +381,7 @@ echo "======================================================================"
 echo ""
 
 # Check C++ build exists
-if [ ! -f "cpp_core/build/latent_core.so" ]; then
+if [ ! -f "cpp_core/build/cpp_core.so" ]; then
     echo "❌ C++ module not built. Run:"
     echo "   cd cpp_core/build && cmake .. && make"
     exit 1
@@ -476,7 +476,7 @@ python3 tests/test_day1_integration.py
 ## Requirements
 
 ### For All Tests:
-- C++ module built (`cpp_core/build/latent_core.so`)
+- C++ module built (`cpp_core/build/cpp_core.so`)
 - Python dependencies installed (`pip install -r requirements.txt`)
 
 ### For Grasshopper Tests:
@@ -529,7 +529,7 @@ Tests should be run:
 
 ## Troubleshooting
 
-**"latent_core module not found"**:
+**"cpp_core module not found"**:
 - Build C++ module: `cd cpp_core/build && cmake .. && make`
 - Add to PYTHONPATH: `export PYTHONPATH=cpp_core/build:$PYTHONPATH`
 

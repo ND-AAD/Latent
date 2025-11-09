@@ -50,7 +50,7 @@ You are creating the Python interface to the C++ core geometry module. This enab
 namespace py = pybind11;
 using namespace latent;
 
-PYBIND11_MODULE(latent_core, m) {
+PYBIND11_MODULE(cpp_core, m) {
     m.doc() = "Latent C++ core geometry module";
 
     // Bind classes here
@@ -187,25 +187,25 @@ py::class_<SubDEvaluator>(m, "SubDEvaluator")
 The bindings should enable this Python usage:
 
 ```python
-import latent_core
+import cpp_core
 import numpy as np
 
 # Create control cage
-cage = latent_core.SubDControlCage()
+cage = cpp_core.SubDControlCage()
 
 # Add vertices
 cage.vertices = [
-    latent_core.Point3D(0, 0, 0),
-    latent_core.Point3D(1, 0, 0),
-    latent_core.Point3D(1, 1, 0),
-    latent_core.Point3D(0, 1, 0)
+    cpp_core.Point3D(0, 0, 0),
+    cpp_core.Point3D(1, 0, 0),
+    cpp_core.Point3D(1, 1, 0),
+    cpp_core.Point3D(0, 1, 0)
 ]
 
 # Add faces
 cage.faces = [[0, 1, 2, 3]]  # Quad face
 
 # Create evaluator
-evaluator = latent_core.SubDEvaluator()
+evaluator = cpp_core.SubDEvaluator()
 evaluator.initialize(cage)
 
 # Tessellate for display
@@ -235,16 +235,16 @@ point, normal = evaluator.evaluate_limit(0, 0.5, 0.5)
 
 ```python
 #!/usr/bin/env python3
-"""Test pybind11 bindings for latent_core module."""
+"""Test pybind11 bindings for cpp_core module."""
 
 import sys
 import numpy as np
 
 # Import the C++ module
 try:
-    import latent_core
+    import cpp_core
 except ImportError as e:
-    print(f"❌ Failed to import latent_core: {e}")
+    print(f"❌ Failed to import cpp_core: {e}")
     print("Make sure the module is built and in PYTHONPATH")
     sys.exit(1)
 
@@ -253,11 +253,11 @@ def test_point3d():
     print("Test: Point3D...")
 
     # Default constructor
-    p1 = latent_core.Point3D()
+    p1 = cpp_core.Point3D()
     assert p1.x == 0.0 and p1.y == 0.0 and p1.z == 0.0
 
     # Parameterized constructor
-    p2 = latent_core.Point3D(1.0, 2.0, 3.0)
+    p2 = cpp_core.Point3D(1.0, 2.0, 3.0)
     assert p2.x == 1.0
     assert p2.y == 2.0
     assert p2.z == 3.0
@@ -277,14 +277,14 @@ def test_control_cage():
     """Test SubDControlCage binding."""
     print("\nTest: SubDControlCage...")
 
-    cage = latent_core.SubDControlCage()
+    cage = cpp_core.SubDControlCage()
 
     # Add vertices
     cage.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0)
     ]
 
     assert cage.vertex_count() == 4
@@ -305,17 +305,17 @@ def test_subd_evaluator():
     print("\nTest: SubDEvaluator...")
 
     # Create simple quad
-    cage = latent_core.SubDControlCage()
+    cage = cpp_core.SubDControlCage()
     cage.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0)
     ]
     cage.faces = [[0, 1, 2, 3]]
 
     # Create evaluator
-    eval = latent_core.SubDEvaluator()
+    eval = cpp_core.SubDEvaluator()
     assert not eval.is_initialized()
 
     # Initialize
@@ -353,16 +353,16 @@ def test_numpy_integration():
     print("\nTest: Numpy integration...")
 
     # Create and tessellate
-    cage = latent_core.SubDControlCage()
+    cage = cpp_core.SubDControlCage()
     cage.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0)
     ]
     cage.faces = [[0, 1, 2, 3]]
 
-    eval = latent_core.SubDEvaluator()
+    eval = cpp_core.SubDEvaluator()
     eval.initialize(cage)
     result = eval.tessellate(3)
 
@@ -404,18 +404,18 @@ def test_cube_example():
     """Test with a cube - more complex geometry."""
     print("\nTest: Cube subdivision...")
 
-    cage = latent_core.SubDControlCage()
+    cage = cpp_core.SubDControlCage()
 
     # 8 vertices of unit cube
     cage.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0),
-        latent_core.Point3D(0, 0, 1),
-        latent_core.Point3D(1, 0, 1),
-        latent_core.Point3D(1, 1, 1),
-        latent_core.Point3D(0, 1, 1)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0),
+        cpp_core.Point3D(0, 0, 1),
+        cpp_core.Point3D(1, 0, 1),
+        cpp_core.Point3D(1, 1, 1),
+        cpp_core.Point3D(0, 1, 1)
     ]
 
     # 6 quad faces
@@ -428,7 +428,7 @@ def test_cube_example():
         [1, 2, 6, 5]   # right
     ]
 
-    eval = latent_core.SubDEvaluator()
+    eval = cpp_core.SubDEvaluator()
     eval.initialize(cage)
 
     # Test different subdivision levels
@@ -447,7 +447,7 @@ def test_cube_example():
 def main():
     """Run all tests."""
     print("=" * 60)
-    print("Testing latent_core Python bindings")
+    print("Testing cpp_core Python bindings")
     print("=" * 60)
 
     try:
@@ -494,22 +494,22 @@ Add to `cpp_core/CMakeLists.txt` (Agent 3 will create base file):
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(latent_core
+pybind11_add_module(cpp_core
     python_bindings/bindings.cpp
     geometry/subd_evaluator.cpp
 )
 
-target_link_libraries(latent_core PRIVATE
+target_link_libraries(cpp_core PRIVATE
     ${OPENSUBDIV_LIBRARIES}
 )
 
-target_include_directories(latent_core PRIVATE
+target_include_directories(cpp_core PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${OPENSUBDIV_INCLUDE_DIR}
 )
 
 # Install Python module
-install(TARGETS latent_core
+install(TARGETS cpp_core
     LIBRARY DESTINATION ${Python3_SITELIB}
 )
 ```
@@ -519,7 +519,7 @@ install(TARGETS latent_core
 ## Success Criteria
 
 - [ ] Bindings compile without errors
-- [ ] Python can import `latent_core` module
+- [ ] Python can import `cpp_core` module
 - [ ] All C++ classes accessible from Python
 - [ ] Numpy arrays work with zero-copy
 - [ ] All test cases pass
@@ -562,14 +562,14 @@ cpp_core/
 │   ├── bindings.cpp           (You create this) ← HERE
 │   └── test_bindings.py       (You create this) ← HERE
 └── build/
-    └── latent_core.so         (Generated by CMake)
+    └── cpp_core.so         (Generated by CMake)
 ```
 
 ---
 
 ## Common Issues and Solutions
 
-**Issue**: "ImportError: latent_core not found"
+**Issue**: "ImportError: cpp_core not found"
 - **Fix**: Add build directory to PYTHONPATH: `export PYTHONPATH=cpp_core/build:$PYTHONPATH`
 
 **Issue**: "Numpy array dtype mismatch"

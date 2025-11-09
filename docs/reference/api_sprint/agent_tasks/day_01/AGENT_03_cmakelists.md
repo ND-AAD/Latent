@@ -11,7 +11,7 @@
 
 Create complete CMake build system that:
 - Links OpenSubdiv
-- Creates static library (`latent_core`)
+- Creates static library (`cpp_core`)
 - Creates Python module via pybind11
 - Works on macOS with Metal backend
 
@@ -62,28 +62,28 @@ find_package(OpenSubdiv REQUIRED)
 find_package(pybind11 REQUIRED)
 
 # Core static library
-add_library(latent_core STATIC
+add_library(cpp_core STATIC
     geometry/subd_evaluator.cpp
     utils/mesh_mapping.cpp
 )
 
-target_include_directories(latent_core PUBLIC
+target_include_directories(cpp_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${OPENSUBDIV_INCLUDE_DIR}
 )
 
-target_link_libraries(latent_core PUBLIC
+target_link_libraries(cpp_core PUBLIC
     ${OPENSUBDIV_LIBRARIES}
 )
 
 # Enable Metal on macOS
 if(APPLE)
-    target_compile_definitions(latent_core PUBLIC OPENSUBDIV_HAS_METAL)
+    target_compile_definitions(cpp_core PUBLIC OPENSUBDIV_HAS_METAL)
 endif()
 
 # Python module
 pybind11_add_module(cpp_core python_bindings/py_bindings.cpp)
-target_link_libraries(cpp_core PRIVATE latent_core)
+target_link_libraries(cpp_core PRIVATE cpp_core)
 
 # Install
 install(TARGETS cpp_core LIBRARY DESTINATION .)
@@ -138,7 +138,7 @@ cmake ..
 make -j$(sysctl -n hw.ncpu)
 
 # Should produce:
-# - liblatent_core.a (static library)
+# - libcpp_core.a (static library)
 # - cpp_core.so (Python module)
 
 # Test Python import
@@ -154,7 +154,7 @@ python3 -c "import sys; sys.path.insert(0, 'build'); import cpp_core; print('✅
 - [ ] Finds OpenSubdiv
 - [ ] Finds pybind11
 - [ ] Builds without errors
-- [ ] Produces `liblatent_core.a`
+- [ ] Produces `libcpp_core.a`
 - [ ] Produces `cpp_core.so`
 - [ ] Python can import module
 
@@ -181,7 +181,7 @@ brew install pybind11
 # Verify Metal support:
 if(APPLE)
     message(STATUS "Enabling Metal backend for OpenSubdiv")
-    target_compile_definitions(latent_core PUBLIC OPENSUBDIV_HAS_METAL)
+    target_compile_definitions(cpp_core PUBLIC OPENSUBDIV_HAS_METAL)
 endif()
 ```
 
@@ -193,7 +193,7 @@ Create simple test to verify build:
 
 ```bash
 # Test that symbols are present
-nm cpp_core/build/liblatent_core.a | grep SubDEvaluator
+nm cpp_core/build/libcpp_core.a | grep SubDEvaluator
 
 # Test Python module loads
 python3 -c "import sys; sys.path.insert(0, 'cpp_core/build'); import cpp_core; print(dir(cpp_core))"

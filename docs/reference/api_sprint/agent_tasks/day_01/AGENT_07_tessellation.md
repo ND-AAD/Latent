@@ -25,7 +25,7 @@ You are creating the bridge between C++ geometry evaluation and Python VTK visua
 **Critical**: Tessellation is for **display only**. All analysis queries exact limit surface via C++ bindings.
 
 **Dependencies**:
-- Agent 5's pybind11 bindings (latent_core module)
+- Agent 5's pybind11 bindings (cpp_core module)
 - Agent 6's Grasshopper HTTP server
 - Existing PyQt6 viewport infrastructure (app/ui/viewport_3d.py)
 
@@ -50,7 +50,7 @@ You are creating the bridge between C++ geometry evaluation and Python VTK visua
 """Fetch SubD geometry from Grasshopper HTTP server."""
 
 import requests
-import latent_core
+import cpp_core
 from typing import Optional, Dict, Any
 
 class SubDFetcher:
@@ -78,7 +78,7 @@ class SubDFetcher:
         except:
             return False
 
-    def fetch_control_cage(self) -> Optional[latent_core.SubDControlCage]:
+    def fetch_control_cage(self) -> Optional[cpp_core.SubDControlCage]:
         """Fetch SubD control cage from server.
 
         Returns:
@@ -94,12 +94,12 @@ class SubDFetcher:
             data = response.json()
 
             # Convert JSON to SubDControlCage
-            cage = latent_core.SubDControlCage()
+            cage = cpp_core.SubDControlCage()
 
             # Add vertices
             for v in data['vertices']:
                 cage.vertices.append(
-                    latent_core.Point3D(v[0], v[1], v[2])
+                    cpp_core.Point3D(v[0], v[1], v[2])
                 )
 
             # Add faces
@@ -138,14 +138,14 @@ class SubDFetcher:
 
 import vtk
 import numpy as np
-import latent_core
+import cpp_core
 from typing import Tuple
 
 class SubDDisplayManager:
     """Manage VTK visualization of SubD geometry."""
 
     @staticmethod
-    def create_mesh_actor(result: latent_core.TessellationResult,
+    def create_mesh_actor(result: cpp_core.TessellationResult,
                          color: Tuple[float, float, float] = (0.8, 0.8, 0.8),
                          show_edges: bool = False) -> vtk.vtkActor:
         """Create VTK actor from tessellation result.
@@ -206,7 +206,7 @@ class SubDDisplayManager:
         return actor
 
     @staticmethod
-    def create_control_cage_actor(cage: latent_core.SubDControlCage,
+    def create_control_cage_actor(cage: cpp_core.SubDControlCage,
                                   color: Tuple[float, float, float] = (1.0, 0.0, 0.0),
                                   point_size: float = 5.0) -> vtk.vtkActor:
         """Create VTK actor for control cage wireframe.
@@ -255,7 +255,7 @@ class SubDDisplayManager:
         return actor
 
     @staticmethod
-    def compute_bounding_box(result: latent_core.TessellationResult) -> Tuple[np.ndarray, np.ndarray]:
+    def compute_bounding_box(result: cpp_core.TessellationResult) -> Tuple[np.ndarray, np.ndarray]:
         """Compute axis-aligned bounding box.
 
         Returns:
@@ -275,7 +275,7 @@ Add import:
 ```python
 from app.bridge.subd_fetcher import SubDFetcher
 from app.geometry.subd_display import SubDDisplayManager
-import latent_core
+import cpp_core
 ```
 
 Add to MainWindow class:
@@ -285,7 +285,7 @@ def __init__(self):
 
     # Add SubD components
     self.subd_fetcher = SubDFetcher()
-    self.subd_evaluator = latent_core.SubDEvaluator()
+    self.subd_evaluator = cpp_core.SubDEvaluator()
     self.current_cage = None
 
     # ... rest of initialization ...
@@ -400,7 +400,7 @@ def display_tessellation(self, result, cage):
 import sys
 sys.path.insert(0, 'cpp_core/build')
 
-import latent_core
+import cpp_core
 from app.bridge.subd_fetcher import SubDFetcher
 
 def main():
@@ -422,7 +422,7 @@ def main():
           f"{cage.face_count()} faces\n")
 
     # Test subdivision levels
-    evaluator = latent_core.SubDEvaluator()
+    evaluator = cpp_core.SubDEvaluator()
     evaluator.initialize(cage)
 
     for level in range(1, 5):
@@ -459,7 +459,7 @@ import sys
 import time
 sys.path.insert(0, 'cpp_core/build')
 
-import latent_core
+import cpp_core
 from app.bridge.subd_fetcher import SubDFetcher
 
 def main():
@@ -472,7 +472,7 @@ def main():
         print("❌ No geometry available")
         return 1
 
-    evaluator = latent_core.SubDEvaluator()
+    evaluator = cpp_core.SubDEvaluator()
 
     # Benchmark initialization
     start = time.time()
@@ -518,7 +518,7 @@ if __name__ == '__main__':
 ## Success Criteria
 
 - [ ] SubDFetcher successfully fetches control cage from server
-- [ ] Control cage converts to latent_core.SubDControlCage correctly
+- [ ] Control cage converts to cpp_core.SubDControlCage correctly
 - [ ] SubDEvaluator initializes without errors
 - [ ] Tessellation produces valid mesh at all levels (1-4)
 - [ ] VTK actors created successfully from tessellation
@@ -535,8 +535,8 @@ if __name__ == '__main__':
 ## Integration Notes
 
 **Connects**:
-- Agent 6 (Grasshopper server) → SubDFetcher → latent_core
-- latent_core.SubDEvaluator → SubDDisplayManager → VTK viewport
+- Agent 6 (Grasshopper server) → SubDFetcher → cpp_core
+- cpp_core.SubDEvaluator → SubDDisplayManager → VTK viewport
 - Existing MainWindow → New load_from_rhino() method
 
 **File Structure**:
@@ -555,7 +555,7 @@ app/
 
 ## Common Issues and Solutions
 
-**Issue**: "latent_core module not found"
+**Issue**: "cpp_core module not found"
 - **Fix**: Ensure C++ module built: `cd cpp_core/build && cmake .. && make`
 - **Fix**: Add to PYTHONPATH: `export PYTHONPATH=cpp_core/build:$PYTHONPATH`
 

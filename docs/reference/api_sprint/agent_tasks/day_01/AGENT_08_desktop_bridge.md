@@ -53,7 +53,7 @@ import hashlib
 import json
 from typing import Optional, Callable
 from PyQt6.QtCore import QTimer
-import latent_core
+import cpp_core
 from .subd_fetcher import SubDFetcher
 
 class LiveBridge:
@@ -61,7 +61,7 @@ class LiveBridge:
 
     def __init__(self,
                  fetcher: SubDFetcher,
-                 on_geometry_changed: Callable[[latent_core.SubDControlCage], None],
+                 on_geometry_changed: Callable[[cpp_core.SubDControlCage], None],
                  poll_interval_ms: int = 2000):
         """Initialize live bridge.
 
@@ -155,7 +155,7 @@ class LiveBridge:
             self.on_geometry_changed(cage)
         # else: No change, no update
 
-    def _compute_cage_hash(self, cage: latent_core.SubDControlCage) -> str:
+    def _compute_cage_hash(self, cage: cpp_core.SubDControlCage) -> str:
         """Compute hash of control cage for change detection.
 
         Args:
@@ -323,7 +323,7 @@ def force_refresh(self):
     print("🔄 Forcing refresh...")
     self.live_bridge.force_update()
 
-def on_geometry_updated(self, cage: latent_core.SubDControlCage):
+def on_geometry_updated(self, cage: cpp_core.SubDControlCage):
     """Called when geometry changes in Grasshopper.
 
     Args:
@@ -394,7 +394,7 @@ def on_geometry_updated(self, cage: latent_core.SubDControlCage):
 import sys
 sys.path.insert(0, 'cpp_core/build')
 
-import latent_core
+import cpp_core
 from app.bridge.live_bridge import LiveBridge
 from app.bridge.subd_fetcher import SubDFetcher
 
@@ -403,21 +403,21 @@ def test_hash_computation():
     print("Testing hash computation...")
 
     # Create identical cages
-    cage1 = latent_core.SubDControlCage()
+    cage1 = cpp_core.SubDControlCage()
     cage1.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0)
     ]
     cage1.faces = [[0, 1, 2, 3]]
 
-    cage2 = latent_core.SubDControlCage()
+    cage2 = cpp_core.SubDControlCage()
     cage2.vertices = [
-        latent_core.Point3D(0, 0, 0),
-        latent_core.Point3D(1, 0, 0),
-        latent_core.Point3D(1, 1, 0),
-        latent_core.Point3D(0, 1, 0)
+        cpp_core.Point3D(0, 0, 0),
+        cpp_core.Point3D(1, 0, 0),
+        cpp_core.Point3D(1, 1, 0),
+        cpp_core.Point3D(0, 1, 0)
     ]
     cage2.faces = [[0, 1, 2, 3]]
 

@@ -452,10 +452,10 @@ response = requests.get('http://localhost:8888/geometry')
 data = response.json()
 
 # Convert to SubDControlCage
-cage = latent_core.SubDControlCage()
+cage = cpp_core.SubDControlCage()
 
 for v in data['vertices']:
-    cage.vertices.append(latent_core.Point3D(v[0], v[1], v[2]))
+    cage.vertices.append(cpp_core.Point3D(v[0], v[1], v[2]))
 
 cage.faces = data['faces']
 cage.creases = [(c[0], c[1], c[2]) for c in data['creases']]
