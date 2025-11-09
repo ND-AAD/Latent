@@ -65,16 +65,16 @@ class EditModeToolBar(QToolBar):
     def _create_mode_buttons(self):
         """Create buttons for each edit mode"""
         modes = [
-            (EditMode.SOLID, "Solid", "Select entire objects", "⬛"),
-            (EditMode.PANEL, "Panel", "Select faces/panels", "▦"),
-            (EditMode.EDGE, "Edge", "Select edges", "╱"),
-            (EditMode.VERTEX, "Vertex", "Select vertices", "•")
+            (EditMode.SOLID, "Solid", "Select entire objects", "⬛", "S"),
+            (EditMode.PANEL, "Panel", "Select faces/panels", "▦", "P"),
+            (EditMode.EDGE, "Edge", "Select edges", "╱", "E"),
+            (EditMode.VERTEX, "Vertex", "Select vertices", "•", "V")
         ]
 
-        for i, (mode, name, tooltip, icon_text) in enumerate(modes):
+        for i, (mode, name, tooltip, icon_text, shortcut) in enumerate(modes):
             button = QToolButton()
             button.setText(icon_text + " " + name)
-            button.setToolTip(tooltip)
+            button.setToolTip(f"{tooltip} (Press {shortcut})")
             button.setCheckable(True)
             button.setAutoRaise(True)
 
