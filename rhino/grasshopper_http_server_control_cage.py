@@ -1,8 +1,8 @@
 """
-Grasshopper HTTP Server - Control Cage Transfer
-================================================
+Grasshopper HTTP Server - Control Cage Transfer & Mold Import
+=============================================================
 
-Serves SubD control cage data via HTTP for the desktop application.
+Serves SubD control cage data via HTTP and receives NURBS molds from desktop app.
 
 CRITICAL: This replaces grasshopper_server_control.py which used mesh transfer.
 This version uses control cage transfer (lossless, exact topology).
@@ -15,12 +15,18 @@ Grasshopper Component:
     - Status: Server status message
     - URL: Server URL
 
+Endpoints:
+  GET  /geometry - Serve SubD control cage as JSON
+  GET  /status   - Server status check
+  POST /molds    - Import NURBS molds back to Rhino
+
 Usage:
   1. Create or reference SubD in Grasshopper
   2. Connect to SubD input
   3. Set Run = True
   4. Server starts on http://localhost:8888
-  5. Desktop app fetches via /geometry endpoint
+  5. Desktop app fetches geometry via GET /geometry
+  6. Desktop app sends molds back via POST /molds
 """
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -37,7 +43,7 @@ server_thread = None
 
 
 class GeometryHandler(BaseHTTPRequestHandler):
-    """Handle HTTP requests for SubD geometry."""
+    """Handle HTTP requests for SubD geometry and mold import."""
 
     def do_GET(self):
         """Handle GET requests."""
@@ -47,6 +53,13 @@ class GeometryHandler(BaseHTTPRequestHandler):
             self.serve_status()
         else:
             self.send_error(404, "Not found")
+
+    def do_POST(self):
+        """Handle POST requests for mold import."""
+        if self.path == '/molds':
+            self._handle_mold_import()
+        else:
+            self.send_error(404, f"POST endpoint not found: {self.path}")
 
     def serve_geometry(self):
         """Serve SubD control cage as JSON."""
@@ -86,6 +99,128 @@ class GeometryHandler(BaseHTTPRequestHandler):
         }
 
         self.wfile.write(json.dumps(status).encode())
+
+    def _handle_mold_import(self):
+        """
+        Import NURBS molds sent from desktop app.
+
+        Expected JSON:
+        {
+            "type": "ceramic_mold_set",
+            "molds": [
+                {
+                    "name": "mold_1",
+                    "degree_u": 3,
+                    "degree_v": 3,
+                    "control_points": [[x,y,z], ...],
+                    "weights": [w, ...],
+                    "count_u": n,
+                    "count_v": m,
+                    "knots_u": [u0, u1, ...],
+                    "knots_v": [v0, v1, ...]
+                },
+                ...
+            ]
+        }
+        """
+        # Read POST body
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+
+        try:
+            data = json.loads(post_data.decode('utf-8'))
+
+            # Validate
+            if data.get('type') != 'ceramic_mold_set':
+                self.send_error(400, "Invalid data type")
+                return
+
+            # Import each mold
+            imported_ids = []
+            for mold_data in data['molds']:
+                guid = self._import_nurbs_surface(mold_data)
+                if guid:
+                    imported_ids.append(str(guid))
+
+            # Response
+            response = {
+                "status": "success",
+                "imported_count": len(imported_ids),
+                "guids": imported_ids
+            }
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode())
+
+            print(f"✅ Imported {len(imported_ids)} molds to Rhino")
+
+        except Exception as e:
+            print(f"❌ Import failed: {str(e)}")
+            self.send_error(500, f"Import failed: {str(e)}")
+
+    def _import_nurbs_surface(self, mold_data):
+        """
+        Create Rhino NurbsSurface from serialized data.
+
+        Args:
+            mold_data: Dict with NURBS surface data
+
+        Returns:
+            GUID of created surface, or None on failure
+        """
+        try:
+            # Import rhinoscriptsyntax for object manipulation
+            import rhinoscriptsyntax as rs
+
+            # Extract data
+            degree_u = mold_data['degree_u']
+            degree_v = mold_data['degree_v']
+            count_u = mold_data['count_u']
+            count_v = mold_data['count_v']
+
+            # Create NurbsSurface
+            surface = rg.NurbsSurface.Create(
+                dimension=3,
+                isRational=True,
+                orderU=degree_u + 1,  # Rhino uses order = degree + 1
+                orderV=degree_v + 1,
+                controlPointCountU=count_u,
+                controlPointCountV=count_v
+            )
+
+            # Set control points and weights
+            points = mold_data['control_points']
+            weights = mold_data['weights']
+
+            idx = 0
+            for i in range(count_u):
+                for j in range(count_v):
+                    x, y, z = points[idx]
+                    w = weights[idx]
+                    surface.Points.SetPoint(i, j, x, y, z, w)
+                    idx += 1
+
+            # Set knot vectors
+            for i, knot in enumerate(mold_data['knots_u']):
+                surface.KnotsU[i] = knot
+            for i, knot in enumerate(mold_data['knots_v']):
+                surface.KnotsV[i] = knot
+
+            # Add to Rhino document
+            guid = rs.AddSurface(surface)
+
+            # Set name
+            if 'name' in mold_data:
+                rs.ObjectName(guid, mold_data['name'])
+
+            return guid
+
+        except Exception as e:
+            print(f"❌ Failed to import surface: {e}")
+            return None
 
     def log_message(self, format, *args):
         """Override to suppress console spam."""

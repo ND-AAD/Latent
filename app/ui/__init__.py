@@ -6,10 +6,12 @@ This module contains all UI widgets and panels for the desktop application.
 
 from app.ui.analysis_panel import AnalysisPanel, CurvatureHistogramWidget
 from app.ui.iteration_timeline import IterationTimeline, IterationListItem
+from app.ui.progress_dialog import ProgressDialog
 
 __all__ = [
     'AnalysisPanel',
     'CurvatureHistogramWidget',
     'IterationTimeline',
     'IterationListItem',
+    'ProgressDialog',
 ]
