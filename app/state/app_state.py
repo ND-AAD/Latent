@@ -7,23 +7,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
-
-
-@dataclass
-class ParametricRegion:
-    """A region defined in parameter space"""
-    id: str
-    faces: List[int]  # Face indices in SubD
-    boundary: Optional[Any] = None  # Will be ParametricCurve
-    unity_principle: str = ""
-    unity_strength: float = 0.0
-    pinned: bool = False
-    modified: bool = False
-    surface: Optional[Any] = None  # Generated NURBS surface
-    constraints_passed: bool = True
-    
-    def __hash__(self):
-        return hash(self.id)
+from app.state.parametric_region import ParametricRegion
 
 
 @dataclass
@@ -257,7 +241,79 @@ class ApplicationState(QObject):
         self.mold_pieces = []
         self.history = []
         self.history_index = -1
-        
+
         self.regions_updated.emit([])
+        self.state_changed.emit()
+        self.history_changed.emit()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize application state to dictionary for JSON export
+
+        Returns:
+            Dictionary representation of state (excluding transient data)
+        """
+        return {
+            'version': '1.0',  # Schema version for future compatibility
+            'regions': [region.to_dict() for region in self.regions],
+            'selected_region_id': self.selected_region_id,
+            'current_lens': self.current_lens,
+            # Note: subd_geometry and mold_pieces are not serialized
+            # They are regenerated from Rhino or recomputed
+        }
+
+    def from_dict(self, data: Dict[str, Any]):
+        """
+        Restore application state from dictionary
+
+        Args:
+            data: Dictionary containing serialized state
+
+        Note: This does not emit signals - caller should handle UI updates
+        """
+        version = data.get('version', '1.0')
+
+        # Restore regions
+        self.regions = [
+            ParametricRegion.from_dict(region_data)
+            for region_data in data.get('regions', [])
+        ]
+
+        # Restore other state
+        self.selected_region_id = data.get('selected_region_id')
+        self.current_lens = data.get('current_lens', 'Flow')
+
+        # Clear history on load (don't restore undo/redo history)
+        self.history = []
+        self.history_index = -1
+
+    def save_to_json(self, filepath: str):
+        """
+        Save application state to JSON file
+
+        Args:
+            filepath: Path to save JSON file
+        """
+        import json
+
+        with open(filepath, 'w') as f:
+            json.dump(self.to_dict(), f, indent=2)
+
+    def load_from_json(self, filepath: str):
+        """
+        Load application state from JSON file
+
+        Args:
+            filepath: Path to JSON file
+        """
+        import json
+
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+
+        self.from_dict(data)
+
+        # Emit signals to update UI
+        self.regions_updated.emit(self.regions)
         self.state_changed.emit()
         self.history_changed.emit()
