@@ -41,7 +41,7 @@ class SubDVertexPicker(QObject):
         super().__init__()
         self.renderer = renderer
         self.render_window = render_window
-        self.interactor = render_window.GetInteractor()
+        self.interactor = render_window.GetInteractor() if render_window else None
         
         # Vertex data
         self.polydata = None
