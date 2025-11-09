@@ -47,7 +47,7 @@ class SubDEdgePicker(QObject):
         super().__init__()
         self.renderer = renderer
         self.render_window = render_window
-        self.interactor = render_window.GetInteractor()
+        self.interactor = render_window.GetInteractor() if render_window else None
 
         # Edge data structures
         self.edges = {}  # edge_id -> EdgeInfo

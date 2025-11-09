@@ -489,6 +489,9 @@ class MainWindow(QMainWindow):
     def add_dock_menu_actions(self):
         """Add menu actions for showing/hiding dock widgets"""
         # Add to View menu
+        # Skip if menus not created yet
+        if not self.menuBar().actions():
+            return
         view_menu = self.menuBar().actions()[3].menu()  # View is 4th menu
         view_menu.addSeparator()
 
