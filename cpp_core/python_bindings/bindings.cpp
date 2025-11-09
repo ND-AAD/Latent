@@ -4,6 +4,7 @@
 #include "../geometry/types.h"
 #include "../geometry/subd_evaluator.h"
 #include "../analysis/curvature_analyzer.h"
+#include "../constraints/validator.h"
 
 namespace py = pybind11;
 using namespace latent;
@@ -362,4 +363,159 @@ PYBIND11_MODULE(cpp_core, m) {
              py::arg("face_indices"),
              py::arg("params_u"),
              py::arg("params_v"));
+
+    // ============================================================
+    // Constraint Validation (Day 6, Agents 41-43)
+    // ============================================================
+
+    // UndercutDetector class (Agent 41)
+    py::class_<UndercutDetector>(m, "UndercutDetector",
+                                 "Detects undercuts in subdivision surfaces using ray-casting")
+        .def(py::init<const SubDEvaluator&>(),
+             "Construct undercut detector\n\n"
+             "Args:\n"
+             "    evaluator: SubDEvaluator (must be initialized)",
+             py::arg("evaluator"))
+
+        .def("detect_undercuts", &UndercutDetector::detect_undercuts,
+             "Detect undercuts along demolding direction\n\n"
+             "Uses ray-casting to detect faces that would be occluded when\n"
+             "demolding in the specified direction. Any occlusion indicates\n"
+             "an undercut that requires additional mold pieces.\n\n"
+             "Args:\n"
+             "    face_indices: List of face indices to check\n"
+             "    demolding_direction: Vector3 direction of demolding\n\n"
+             "Returns:\n"
+             "    dict: Map from face_id to severity (0.0-1.0)",
+             py::arg("face_indices"),
+             py::arg("demolding_direction"))
+
+        .def("check_face_undercut", &UndercutDetector::check_face_undercut,
+             "Check single face for undercut\n\n"
+             "Args:\n"
+             "    face_id: Face index to check\n"
+             "    demolding_direction: Vector3 direction of demolding\n\n"
+             "Returns:\n"
+             "    float: Severity (0.0 = no undercut, >0.0 = undercut detected)",
+             py::arg("face_id"),
+             py::arg("demolding_direction"));
+
+    // DraftChecker class (Agent 42)
+    py::class_<DraftChecker>(m, "DraftChecker",
+                             "Checks draft angles for mold demolding")
+        .def(py::init<const SubDEvaluator&>(),
+             "Construct draft checker\n\n"
+             "Args:\n"
+             "    evaluator: SubDEvaluator (must be initialized)",
+             py::arg("evaluator"))
+
+        .def("compute_draft_angles", &DraftChecker::compute_draft_angles,
+             "Compute draft angles for all faces\n\n"
+             "Args:\n"
+             "    face_indices: List of face indices to check\n"
+             "    demolding_direction: Vector3 direction of demolding\n\n"
+             "Returns:\n"
+             "    dict: Map from face_id to draft angle in degrees",
+             py::arg("face_indices"),
+             py::arg("demolding_direction"))
+
+        .def("check_face_draft", &DraftChecker::check_face_draft,
+             "Check single face draft angle\n\n"
+             "Args:\n"
+             "    face_id: Face index to check\n"
+             "    demolding_direction: Vector3 direction of demolding\n\n"
+             "Returns:\n"
+             "    float: Draft angle in degrees",
+             py::arg("face_id"),
+             py::arg("demolding_direction"))
+
+        .def_property_readonly_static("MIN_DRAFT_ANGLE",
+            [](py::object) { return DraftChecker::MIN_DRAFT_ANGLE; },
+            "Minimum acceptable draft angle (0.5°)")
+
+        .def_property_readonly_static("RECOMMENDED_DRAFT_ANGLE",
+            [](py::object) { return DraftChecker::RECOMMENDED_DRAFT_ANGLE; },
+            "Recommended draft angle (2.0°)");
+
+    // ConstraintLevel enum
+    py::enum_<ConstraintLevel>(m, "ConstraintLevel",
+                               "Constraint severity levels for mold validation")
+        .value("ERROR", ConstraintLevel::ERROR,
+               "Physical impossibility - must fix")
+        .value("WARNING", ConstraintLevel::WARNING,
+               "Manufacturing challenge - negotiable")
+        .value("FEATURE", ConstraintLevel::FEATURE,
+               "Mathematical tension - aesthetic feature");
+
+    // ConstraintViolation struct
+    py::class_<ConstraintViolation>(m, "ConstraintViolation",
+                                    "Report of a single constraint violation")
+        .def(py::init<>(), "Default constructor")
+        .def_readonly("level", &ConstraintViolation::level,
+                     "Severity level (ERROR/WARNING/FEATURE)")
+        .def_readonly("description", &ConstraintViolation::description,
+                     "Human-readable description of the violation")
+        .def_readonly("face_id", &ConstraintViolation::face_id,
+                     "Which face violates the constraint")
+        .def_readonly("severity", &ConstraintViolation::severity,
+                     "Magnitude of violation (0.0-1.0)")
+        .def_readonly("suggestion", &ConstraintViolation::suggestion,
+                     "How to fix the violation")
+        .def("__repr__", [](const ConstraintViolation& v) {
+            std::string level_str;
+            switch(v.level) {
+                case ConstraintLevel::ERROR: level_str = "ERROR"; break;
+                case ConstraintLevel::WARNING: level_str = "WARNING"; break;
+                case ConstraintLevel::FEATURE: level_str = "FEATURE"; break;
+            }
+            return "ConstraintViolation(" + level_str + ", face=" +
+                   std::to_string(v.face_id) + ", severity=" +
+                   std::to_string(v.severity) + ")";
+        });
+
+    // ConstraintReport class
+    py::class_<ConstraintReport>(m, "ConstraintReport",
+                                 "Complete constraint report for a region")
+        .def(py::init<>(), "Default constructor")
+        .def_readwrite("violations", &ConstraintReport::violations,
+                      "List of all constraint violations")
+        .def("add_error", &ConstraintReport::add_error,
+             "Add an ERROR-level violation",
+             py::arg("description"), py::arg("face_id"), py::arg("severity"))
+        .def("add_warning", &ConstraintReport::add_warning,
+             "Add a WARNING-level violation",
+             py::arg("description"), py::arg("face_id"), py::arg("severity"))
+        .def("add_feature", &ConstraintReport::add_feature,
+             "Add a FEATURE-level observation",
+             py::arg("description"), py::arg("face_id"))
+        .def("has_errors", &ConstraintReport::has_errors,
+             "Check if report contains any errors")
+        .def("has_warnings", &ConstraintReport::has_warnings,
+             "Check if report contains any warnings")
+        .def("error_count", &ConstraintReport::error_count,
+             "Get number of errors in report")
+        .def("warning_count", &ConstraintReport::warning_count,
+             "Get number of warnings in report");
+
+    // ConstraintValidator class
+    py::class_<ConstraintValidator>(m, "ConstraintValidator",
+                                    "Complete constraint validator for mold regions")
+        .def(py::init<const SubDEvaluator&>(),
+             "Construct validator from SubD evaluator",
+             py::arg("evaluator"))
+        .def("validate_region", &ConstraintValidator::validate_region,
+             "Validate a region for manufacturability\n\n"
+             "Checks for:\n"
+             "- Undercuts (ERROR if detected)\n"
+             "- Draft angles (ERROR if < 0.5°, WARNING if < 2.0°)\n"
+             "- Wall thickness (if implemented)\n\n"
+             "Args:\n"
+             "    face_indices: List of face indices in the region\n"
+             "    demolding_direction: Direction for mold removal (Vector3)\n"
+             "    min_wall_thickness: Minimum wall thickness in mm (default 3.0)\n\n"
+             "Returns:\n"
+             "    ConstraintReport: Complete validation report",
+             py::arg("face_indices"),
+             py::arg("demolding_direction"),
+             py::arg("min_wall_thickness") = 3.0f);
 }
