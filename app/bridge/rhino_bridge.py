@@ -11,6 +11,12 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 import hashlib
+import logging
+from requests.exceptions import RequestException, Timeout, ConnectionError
+
+from app.utils.error_handling import get_logger, graceful_degradation
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -41,9 +47,13 @@ class SubDGeometry:
                     if hasattr(geom, 'IsSubD') or type(geom).__name__ == 'SubD':
                         self._subd_object = geom
                     else:
-                        print(f"Warning: Geometry is {type(geom).__name__}, not SubD")
+                        logger.warning(f"Geometry is {type(geom).__name__}, not SubD")
+                else:
+                    logger.error("No geometry found in 3dm data")
+            except base64.binascii.Error as e:
+                logger.error(f"Base64 decode error: {e}")
             except Exception as e:
-                print(f"Error decoding SubD: {e}")
+                logger.error(f"Error decoding SubD: {e}", exc_info=True)
         return self._subd_object
 
     def get_hash(self) -> str:
@@ -77,16 +87,38 @@ class RhinoBridge(QObject):
     def connect(self) -> bool:
         """Establish connection with Rhino HTTP server (status check only)"""
         try:
+            logger.info(f"Attempting to connect to {self.base_url}")
             response = requests.get(f"{self.base_url}/status", timeout=2)
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get('status') == 'connected':
                     self.connected = True
                     self.connection_status_changed.emit(True)
-                    print("✅ Connected to Grasshopper (manual push mode)")
+                    logger.info("Successfully connected to Grasshopper (manual push mode)")
                     return True
-        except requests.exceptions.RequestException as e:
-            self.error_occurred.emit(f"Connection failed: {str(e)}")
+                else:
+                    logger.warning(f"Server responded but status is: {data.get('status')}")
+            else:
+                logger.error(f"Server returned status code {response.status_code}")
+                self.error_occurred.emit(f"Server error: HTTP {response.status_code}")
+
+        except Timeout:
+            error_msg = "Connection timeout - server not responding"
+            logger.error(error_msg)
+            self.error_occurred.emit(error_msg)
+        except ConnectionError:
+            error_msg = "Cannot connect - ensure Grasshopper HTTP server is running"
+            logger.error(error_msg)
+            self.error_occurred.emit(error_msg)
+        except RequestException as e:
+            error_msg = f"Connection failed: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.error_occurred.emit(error_msg)
+        except Exception as e:
+            error_msg = f"Unexpected error during connection: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.error_occurred.emit(error_msg)
 
         self.connected = False
         self.connection_status_changed.emit(False)
@@ -107,30 +139,57 @@ class RhinoBridge(QObject):
         This is called by the HTTP server when Grasshopper pushes geometry
         """
         try:
+            # Validate required fields
+            if not geometry_data:
+                logger.error("Empty geometry data received")
+                self.error_occurred.emit("Empty geometry data")
+                return None
+
+            if 'vertices' not in geometry_data or 'faces' not in geometry_data:
+                logger.error("Missing required geometry fields (vertices/faces)")
+                self.error_occurred.emit("Invalid geometry data format")
+                return None
+
+            vertices = geometry_data['vertices']
+            faces = geometry_data['faces']
+
+            # Validate data integrity
+            if not vertices or not faces:
+                logger.error("Empty vertices or faces array")
+                self.error_occurred.emit("Geometry has no vertices or faces")
+                return None
+
             # Create SubDGeometry from received data
             geometry = SubDGeometry(
                 subd_data='',  # No 3dm data in manual push mode
-                vertex_count=geometry_data.get('vertex_count', 0),
-                face_count=geometry_data.get('face_count', 0),
+                vertex_count=geometry_data.get('vertex_count', len(vertices)),
+                face_count=geometry_data.get('face_count', len(faces)),
                 edge_count=0  # Not needed in manual mode
             )
 
             # Add mesh data
-            if 'vertices' in geometry_data and 'faces' in geometry_data:
-                geometry.mesh_data = {
-                    'vertices': geometry_data['vertices'],
-                    'faces': geometry_data['faces'],
-                    'normals': geometry_data.get('normals', [])
-                }
-                print(f"📥 Received geometry: {len(geometry_data['vertices'])} vertices, {len(geometry_data['faces'])} faces")
+            geometry.mesh_data = {
+                'vertices': vertices,
+                'faces': faces,
+                'normals': geometry_data.get('normals', [])
+            }
+
+            logger.info(f"Received geometry: {len(vertices)} vertices, {len(faces)} faces")
 
             self.current_geometry = geometry
             self.geometry_received.emit(geometry)
 
             return geometry
 
+        except KeyError as e:
+            error_msg = f"Missing required field: {e}"
+            logger.error(error_msg)
+            self.error_occurred.emit(error_msg)
+            return None
         except Exception as e:
-            print(f"Error receiving geometry: {e}")
+            error_msg = f"Error receiving geometry: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.error_occurred.emit(error_msg)
             return None
 
     def send_molds(self, mold_pieces: List[Dict]) -> bool:
@@ -144,9 +203,16 @@ class RhinoBridge(QObject):
             True if successful
         """
         if not self.connected:
+            logger.warning("Cannot send molds - not connected to server")
+            self.error_occurred.emit("Not connected to Rhino")
+            return False
+
+        if not mold_pieces:
+            logger.warning("No mold pieces to send")
             return False
 
         try:
+            logger.info(f"Sending {len(mold_pieces)} mold pieces to Rhino")
             data = {'mold_pieces': mold_pieces}
             response = requests.post(
                 f"{self.base_url}/molds",
@@ -155,9 +221,31 @@ class RhinoBridge(QObject):
             )
 
             if response.status_code == 200:
+                logger.info("Molds sent successfully")
                 return True
+            else:
+                error_msg = f"Server returned status code {response.status_code}"
+                logger.error(error_msg)
+                self.error_occurred.emit(error_msg)
+                return False
 
-        except requests.exceptions.RequestException as e:
-            self.error_occurred.emit(f"Failed to send molds: {str(e)}")
-
-        return False
+        except Timeout:
+            error_msg = "Timeout sending molds to Rhino"
+            logger.error(error_msg)
+            self.error_occurred.emit(error_msg)
+            return False
+        except ConnectionError:
+            error_msg = "Connection lost while sending molds"
+            logger.error(error_msg)
+            self.error_occurred.emit(error_msg)
+            return False
+        except RequestException as e:
+            error_msg = f"Failed to send molds: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.error_occurred.emit(error_msg)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected error sending molds: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            self.error_occurred.emit(error_msg)
+            return False

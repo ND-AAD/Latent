@@ -181,17 +181,20 @@ class MainWindow(QMainWindow):
         # Load from Rhino (C++ SubD pipeline)
         load_rhino = QAction("Load from &Rhino", self)
         load_rhino.setShortcut("Ctrl+R")
+        load_rhino.setToolTip("Load SubD geometry from Grasshopper server (Ctrl+R)")
         load_rhino.triggered.connect(self.load_from_rhino)
         file_menu.addAction(load_rhino)
 
         # Start live sync
         start_sync = QAction("Start &Live Sync", self)
         start_sync.setShortcut("Ctrl+L")
+        start_sync.setToolTip("Enable automatic geometry synchronization (Ctrl+L)")
         start_sync.triggered.connect(self.start_live_sync)
         file_menu.addAction(start_sync)
 
         # Stop live sync
         stop_sync = QAction("Stop Live Sync", self)
+        stop_sync.setToolTip("Disable automatic geometry synchronization")
         stop_sync.triggered.connect(self.stop_live_sync)
         file_menu.addAction(stop_sync)
 
@@ -200,6 +203,7 @@ class MainWindow(QMainWindow):
         # Force refresh
         refresh = QAction("&Refresh", self)
         refresh.setShortcut("F5")
+        refresh.setToolTip("Force geometry refresh from Grasshopper (F5)")
         refresh.triggered.connect(self.force_refresh)
         file_menu.addAction(refresh)
 
@@ -207,33 +211,38 @@ class MainWindow(QMainWindow):
 
         connect_action = QAction("Connect to Rhino", self)
         connect_action.setShortcut("Ctrl+O")
+        connect_action.setToolTip("Connect to Grasshopper HTTP server (Ctrl+O)")
         connect_action.triggered.connect(self.connect_to_rhino)
         file_menu.addAction(connect_action)
 
         file_menu.addSeparator()
-        
+
         save_action = QAction("Save Session", self)
         save_action.setShortcut("Ctrl+S")
+        save_action.setToolTip("Save current window layout and session (Ctrl+S)")
         save_action.triggered.connect(self.save_session)
         file_menu.addAction(save_action)
-        
+
         file_menu.addSeparator()
-        
+
         quit_action = QAction("Quit", self)
         quit_action.setShortcut("Ctrl+Q")
+        quit_action.setToolTip("Exit application (Ctrl+Q)")
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
         
         # Edit menu
         edit_menu = menubar.addMenu("Edit")
-        
+
         undo_action = QAction("Undo", self)
         undo_action.setShortcut("Ctrl+Z")
+        undo_action.setToolTip("Undo last action (Ctrl+Z)")
         undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
-        
+
         redo_action = QAction("Redo", self)
         redo_action.setShortcut("Ctrl+Shift+Z")
+        redo_action.setToolTip("Redo last undone action (Ctrl+Shift+Z)")
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
 
@@ -242,16 +251,19 @@ class MainWindow(QMainWindow):
         # Selection operations
         clear_sel_action = QAction("Clear Selection", self)
         clear_sel_action.setShortcut("Esc")
+        clear_sel_action.setToolTip("Clear current selection (Esc)")
         clear_sel_action.triggered.connect(self.clear_selection)
         edit_menu.addAction(clear_sel_action)
 
         select_all_action = QAction("Select All", self)
         select_all_action.setShortcut("Ctrl+A")
+        select_all_action.setToolTip("Select all elements in current edit mode (Ctrl+A)")
         select_all_action.triggered.connect(self.select_all)
         edit_menu.addAction(select_all_action)
 
         invert_sel_action = QAction("Invert Selection", self)
         invert_sel_action.setShortcut("Ctrl+I")
+        invert_sel_action.setToolTip("Invert current selection (Ctrl+I)")
         invert_sel_action.triggered.connect(self.invert_selection)
         edit_menu.addAction(invert_sel_action)
 
@@ -259,11 +271,13 @@ class MainWindow(QMainWindow):
 
         grow_sel_action = QAction("Grow Selection", self)
         grow_sel_action.setShortcut("Ctrl+>")
+        grow_sel_action.setToolTip("Grow selection to topological neighbors (Ctrl+>)")
         grow_sel_action.triggered.connect(self.grow_selection)
         edit_menu.addAction(grow_sel_action)
 
         shrink_sel_action = QAction("Shrink Selection", self)
         shrink_sel_action.setShortcut("Ctrl+<")
+        shrink_sel_action.setToolTip("Shrink selection by removing boundary elements (Ctrl+<)")
         shrink_sel_action.triggered.connect(self.shrink_selection)
         edit_menu.addAction(shrink_sel_action)
 
@@ -280,24 +294,29 @@ class MainWindow(QMainWindow):
 
         # Viewport Layout submenu
         layout_menu = view_menu.addMenu("Viewport Layout")
+        layout_menu.setToolTipsVisible(True)
 
         layout_single = QAction("Single", self)
         layout_single.setShortcut("Alt+1")
+        layout_single.setToolTip("Single viewport layout (Alt+1)")
         layout_single.triggered.connect(lambda: self.viewport_layout.set_layout(ViewportLayout.SINGLE))
         layout_menu.addAction(layout_single)
 
         layout_2h = QAction("Two Horizontal", self)
         layout_2h.setShortcut("Alt+2")
+        layout_2h.setToolTip("Two viewports side-by-side (Alt+2)")
         layout_2h.triggered.connect(lambda: self.viewport_layout.set_layout(ViewportLayout.TWO_HORIZONTAL))
         layout_menu.addAction(layout_2h)
 
         layout_2v = QAction("Two Vertical", self)
         layout_2v.setShortcut("Alt+3")
+        layout_2v.setToolTip("Two viewports stacked vertically (Alt+3)")
         layout_2v.triggered.connect(lambda: self.viewport_layout.set_layout(ViewportLayout.TWO_VERTICAL))
         layout_menu.addAction(layout_2v)
 
         layout_4grid = QAction("Four Grid", self)
         layout_4grid.setShortcut("Alt+4")
+        layout_4grid.setToolTip("Four viewports in grid layout (Alt+4)")
         layout_4grid.triggered.connect(lambda: self.viewport_layout.set_layout(ViewportLayout.FOUR_GRID))
         layout_menu.addAction(layout_4grid)
 
@@ -305,6 +324,7 @@ class MainWindow(QMainWindow):
 
         reset_view = QAction("Reset All Cameras", self)
         reset_view.setShortcut("Space")
+        reset_view.setToolTip("Reset all viewport cameras to fit geometry (Space)")
         reset_view.triggered.connect(self.viewport_layout.reset_all_cameras)
         view_menu.addAction(reset_view)
 
@@ -366,29 +386,32 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar("Analysis Tools")
         toolbar.setMovable(True)
         toolbar.setFloatable(False)
+        toolbar.setToolTip("Quick access to analysis lenses and mold generation")
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
         # Quick lens selection buttons
-        toolbar.addWidget(QLabel("Quick Lens: "))
+        label = QLabel("Quick Lens: ")
+        label.setToolTip("Select mathematical lens for region discovery")
+        toolbar.addWidget(label)
         toolbar.addSeparator()
 
         flow_action = QAction("🌊 Flow", self)
-        flow_action.setToolTip("Run Flow (Geodesic) analysis")
+        flow_action.setToolTip("Run Flow (Geodesic) analysis - discovers regions based on flow patterns")
         flow_action.triggered.connect(lambda: self.run_analysis("Flow"))
         toolbar.addAction(flow_action)
 
         spectral_action = QAction("〰️ Spectral", self)
-        spectral_action.setToolTip("Run Spectral (Vibration) analysis")
+        spectral_action.setToolTip("Run Spectral (Vibration) analysis - uses Laplace-Beltrami eigenfunctions")
         spectral_action.triggered.connect(lambda: self.run_analysis("Spectral"))
         toolbar.addAction(spectral_action)
 
         curvature_action = QAction("📐 Curvature", self)
-        curvature_action.setToolTip("Run Curvature (Ridge/Valley) analysis")
+        curvature_action.setToolTip("Run Curvature (Ridge/Valley) analysis - discovers regions by differential geometry")
         curvature_action.triggered.connect(lambda: self.run_analysis("Curvature"))
         toolbar.addAction(curvature_action)
 
         topo_action = QAction("🔷 Topological", self)
-        topo_action.setToolTip("Run Topological analysis")
+        topo_action.setToolTip("Run Topological analysis - finds critical points and Morse decomposition")
         topo_action.triggered.connect(lambda: self.run_analysis("Topological"))
         toolbar.addAction(topo_action)
 
@@ -396,14 +419,14 @@ class MainWindow(QMainWindow):
 
         # Mold generation
         generate_action = QAction("🔨 Generate Molds", self)
-        generate_action.setToolTip("Generate mold geometry from pinned regions")
+        generate_action.setToolTip("Generate mold geometry from pinned regions\n(applies draft angles, adds wall thickness, creates registration keys)")
         generate_action.triggered.connect(self.generate_molds)
         toolbar.addAction(generate_action)
         self.toolbar_generate_action = generate_action
 
         # Send to Rhino
         send_action = QAction("📤 Send to Rhino", self)
-        send_action.setToolTip("Send generated molds to Rhino")
+        send_action.setToolTip("Send generated molds to Rhino for fabrication prep")
         send_action.triggered.connect(self.send_to_rhino)
         toolbar.addAction(send_action)
         self.toolbar_send_action = send_action

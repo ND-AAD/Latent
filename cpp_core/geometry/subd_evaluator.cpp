@@ -112,7 +112,7 @@ void SubDEvaluator::initialize(const SubDControlCage& cage) {
 }
 
 TessellationResult SubDEvaluator::tessellate(int subdivision_level,
-                                             bool adaptive) {
+                                             bool adaptive) const {
     if (!initialized_) {
         throw std::runtime_error("SubDEvaluator not initialized");
     }

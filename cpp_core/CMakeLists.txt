@@ -240,44 +240,56 @@ target_link_libraries(cpp_core_py PRIVATE cpp_core_static)
 # Set output name to cpp_core (Python import name)
 set_target_properties(cpp_core_py PROPERTIES OUTPUT_NAME cpp_core)
 
-# Test executables
-add_executable(test_subd_evaluator test_subd_evaluator.cpp)
-target_link_libraries(test_subd_evaluator PRIVATE cpp_core_static)
+# Standalone test executables (legacy - use BUILD_TESTS=OFF if using Google Test)
+option(BUILD_STANDALONE_TESTS "Build standalone test executables" OFF)
+if(BUILD_STANDALONE_TESTS)
+    add_executable(test_subd_evaluator_standalone test_subd_evaluator.cpp)
+    target_link_libraries(test_subd_evaluator_standalone PRIVATE cpp_core_static)
 
-add_executable(test_limit_evaluation test_limit_evaluation.cpp)
-target_link_libraries(test_limit_evaluation PRIVATE cpp_core_static)
+    add_executable(test_limit_evaluation test_limit_evaluation.cpp)
+    target_link_libraries(test_limit_evaluation PRIVATE cpp_core_static)
 
-add_executable(test_curvature test_curvature.cpp)
-target_link_libraries(test_curvature PRIVATE cpp_core_static)
+    add_executable(test_curvature_standalone test_curvature.cpp)
+    target_link_libraries(test_curvature_standalone PRIVATE cpp_core_static)
 
-add_executable(test_validator_header test_validator_header.cpp)
-target_link_libraries(test_validator_header PRIVATE cpp_core_static)
+    add_executable(test_validator_header test_validator_header.cpp)
+    target_link_libraries(test_validator_header PRIVATE cpp_core_static)
 
-add_executable(test_draft_checker test_draft_checker.cpp)
-target_link_libraries(test_draft_checker PRIVATE cpp_core_static)
+    add_executable(test_draft_checker test_draft_checker.cpp)
+    target_link_libraries(test_draft_checker PRIVATE cpp_core_static)
 
-# Add NURBS tests if OpenCASCADE is available
-if(OpenCASCADE_FOUND)
-    add_executable(test_nurbs_fitting test_nurbs_fitting.cpp)
-    target_link_libraries(test_nurbs_fitting PRIVATE cpp_core_static)
+    # Add NURBS tests if OpenCASCADE is available
+    if(OpenCASCADE_FOUND)
+        add_executable(test_nurbs_fitting test_nurbs_fitting.cpp)
+        target_link_libraries(test_nurbs_fitting PRIVATE cpp_core_static)
 
-    add_executable(test_mold_solid test_mold_solid.cpp)
-    target_link_libraries(test_mold_solid PRIVATE cpp_core_static)
+        add_executable(test_mold_solid test_mold_solid.cpp)
+        target_link_libraries(test_mold_solid PRIVATE cpp_core_static)
 
-    add_executable(test_draft_transform test_draft_transform.cpp)
-    target_link_libraries(test_draft_transform PRIVATE cpp_core_static)
+        add_executable(test_draft_transform test_draft_transform.cpp)
+        target_link_libraries(test_draft_transform PRIVATE cpp_core_static)
 
-    # Standalone draft test (no dependencies on other modules)
-    add_executable(test_draft_simple test_draft_simple.cpp)
-    target_link_libraries(test_draft_simple PRIVATE ${OPENCASCADE_LIBRARIES})
-    target_include_directories(test_draft_simple PRIVATE ${OPENCASCADE_INCLUDE_DIRS})
+        # Standalone draft test (no dependencies on other modules)
+        add_executable(test_draft_simple test_draft_simple.cpp)
+        target_link_libraries(test_draft_simple PRIVATE ${OPENCASCADE_LIBRARIES})
+        target_include_directories(test_draft_simple PRIVATE ${OPENCASCADE_INCLUDE_DIRS})
+    endif()
 endif()
 
 # Install targets
 install(TARGETS cpp_core_static ARCHIVE DESTINATION lib)
 install(TARGETS cpp_core_py LIBRARY DESTINATION .)
 
+# Enable testing with Google Test
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
 message(STATUS "Configuration complete!")
 message(STATUS "  Static library: libcpp_core.a")
 message(STATUS "  Python module: cpp_core.so (or .pyd on Windows)")
 message(STATUS "  Test executable: test_subd_evaluator")
+if(BUILD_TESTS)
+    message(STATUS "  Unit tests: Enabled (use -DBUILD_TESTS=OFF to disable)")
+endif()

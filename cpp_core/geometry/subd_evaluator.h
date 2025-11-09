@@ -28,7 +28,7 @@ namespace latent {
 class SubDEvaluator {
 private:
     std::unique_ptr<OpenSubdiv::Far::TopologyRefiner> refiner_;
-    std::vector<int> triangle_to_face_map_;
+    mutable std::vector<int> triangle_to_face_map_;  // Mutable for tessellation caching
     bool initialized_;
 
 public:
@@ -54,7 +54,7 @@ public:
      * @return Triangulated mesh with vertices, normals, and topology
      */
     TessellationResult tessellate(int subdivision_level = 3,
-                                   bool adaptive = false);
+                                   bool adaptive = false) const;
 
     /**
      * @brief Evaluate exact point on limit surface

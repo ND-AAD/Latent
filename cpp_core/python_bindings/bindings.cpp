@@ -1,14 +1,42 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <pybind11/operators.h>
 #include "../geometry/types.h"
 #include "../geometry/subd_evaluator.h"
 #include "../geometry/nurbs_generator.h"
 #include "../analysis/curvature_analyzer.h"
 #include "../constraints/validator.h"
+#include <stdexcept>
+#include <sstream>
 
 namespace py = pybind11;
 using namespace latent;
+
+// ============================================================
+// Exception Handling Wrappers
+// ============================================================
+
+// Custom exception translator for better error messages
+void translate_cpp_exception(const std::exception& e) {
+    PyErr_SetString(PyExc_RuntimeError, e.what());
+}
+
+// Safe wrapper for evaluator operations
+template<typename Func>
+auto safe_evaluator_call(const char* operation, Func&& func) -> decltype(func()) {
+    try {
+        return func();
+    } catch (const std::runtime_error& e) {
+        std::stringstream ss;
+        ss << "Evaluator error during " << operation << ": " << e.what();
+        throw std::runtime_error(ss.str());
+    } catch (const std::exception& e) {
+        std::stringstream ss;
+        ss << "Unexpected error during " << operation << ": " << e.what();
+        throw std::runtime_error(ss.str());
+    }
+}
 
 // Declare OpenCASCADE Handle types as opaque
 // These types are not directly usable from Python yet
@@ -18,6 +46,19 @@ using namespace latent;
 
 PYBIND11_MODULE(cpp_core, m) {
     m.doc() = "Latent C++ core geometry module - Exact SubD limit surface evaluation";
+
+    // Register exception translator
+    py::register_exception_translator([](std::exception_ptr p) {
+        try {
+            if (p) std::rethrow_exception(p);
+        } catch (const std::runtime_error& e) {
+            PyErr_SetString(PyExc_RuntimeError, e.what());
+        } catch (const std::invalid_argument& e) {
+            PyErr_SetString(PyExc_ValueError, e.what());
+        } catch (const std::exception& e) {
+            PyErr_SetString(PyExc_RuntimeError, e.what());
+        }
+    });
 
     // ============================================================
     // Point3D Binding
@@ -146,10 +187,24 @@ PYBIND11_MODULE(cpp_core, m) {
                               "Evaluates exact limit surface of SubD control cage")
         .def(py::init<>(), "Default constructor")
         
-        .def("initialize", &SubDEvaluator::initialize,
+        .def("initialize",
+             [](SubDEvaluator& eval, const SubDControlCage& cage) {
+                 return safe_evaluator_call("initialize", [&]() {
+                     if (cage.vertices.empty()) {
+                         throw std::invalid_argument("Cannot initialize with empty control cage");
+                     }
+                     if (cage.faces.empty()) {
+                         throw std::invalid_argument("Cannot initialize with no faces");
+                     }
+                     return eval.initialize(cage);
+                 });
+             },
              "Initialize from control cage\n\n"
              "Args:\n"
-             "    cage: SubDControlCage with vertices, faces, and creases\n",
+             "    cage: SubDControlCage with vertices, faces, and creases\n"
+             "Raises:\n"
+             "    ValueError: If cage is invalid or empty\n"
+             "    RuntimeError: If initialization fails\n",
              py::arg("cage"))
         
         .def("is_initialized", &SubDEvaluator::is_initialized,
@@ -167,14 +222,28 @@ PYBIND11_MODULE(cpp_core, m) {
              py::arg("subdivision_level") = 3,
              py::arg("adaptive") = false)
         
-        .def("evaluate_limit_point", &SubDEvaluator::evaluate_limit_point,
+        .def("evaluate_limit_point",
+             [](const SubDEvaluator& eval, int face_idx, float u, float v) {
+                 return safe_evaluator_call("evaluate_limit_point", [&]() {
+                     if (!eval.is_initialized()) {
+                         throw std::runtime_error("Evaluator not initialized - call initialize() first");
+                     }
+                     if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+                         throw std::invalid_argument("Parametric coordinates must be in range [0, 1]");
+                     }
+                     return eval.evaluate_limit_point(face_idx, u, v);
+                 });
+             },
              "Evaluate exact point on limit surface\n\n"
              "Args:\n"
              "    face_index: Control face index\n"
              "    u: Parametric coordinate (0-1)\n"
              "    v: Parametric coordinate (0-1)\n\n"
              "Returns:\n"
-             "    Point3D: Point on limit surface",
+             "    Point3D: Point on limit surface\n"
+             "Raises:\n"
+             "    RuntimeError: If evaluator not initialized\n"
+             "    ValueError: If parameters out of range\n",
              py::arg("face_index"),
              py::arg("u"),
              py::arg("v"))
@@ -337,7 +406,19 @@ PYBIND11_MODULE(cpp_core, m) {
                                   "Analyzes curvature properties of subdivision surfaces")
         .def(py::init<>(), "Default constructor")
 
-        .def("compute_curvature", &CurvatureAnalyzer::compute_curvature,
+        .def("compute_curvature",
+             [](CurvatureAnalyzer& analyzer, const SubDEvaluator& eval,
+                int face_idx, float u, float v) {
+                 return safe_evaluator_call("compute_curvature", [&]() {
+                     if (!eval.is_initialized()) {
+                         throw std::runtime_error("Evaluator not initialized");
+                     }
+                     if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+                         throw std::invalid_argument("Parametric coordinates must be in range [0, 1]");
+                     }
+                     return analyzer.compute_curvature(eval, face_idx, u, v);
+                 });
+             },
              "Compute all curvature quantities at a point\n\n"
              "Uses exact limit surface evaluation with second derivatives to compute:\n"
              "- First and second fundamental forms\n"
@@ -350,7 +431,10 @@ PYBIND11_MODULE(cpp_core, m) {
              "    u: Parametric coordinate (0-1)\n"
              "    v: Parametric coordinate (0-1)\n\n"
              "Returns:\n"
-             "    CurvatureResult: All curvature data at the point",
+             "    CurvatureResult: All curvature data at the point\n"
+             "Raises:\n"
+             "    RuntimeError: If evaluator not initialized\n"
+             "    ValueError: If parameters out of range\n",
              py::arg("evaluator"),
              py::arg("face_index"),
              py::arg("u"),
@@ -510,7 +594,27 @@ PYBIND11_MODULE(cpp_core, m) {
         .def(py::init<const SubDEvaluator&>(),
              "Construct validator from SubD evaluator",
              py::arg("evaluator"))
-        .def("validate_region", &ConstraintValidator::validate_region,
+        .def("validate_region",
+             [](ConstraintValidator& validator, const std::vector<int>& face_indices,
+                const Vector3& demolding_dir, float min_wall_thickness) {
+                 return safe_evaluator_call("validate_region", [&]() {
+                     if (face_indices.empty()) {
+                         throw std::invalid_argument("Cannot validate empty region");
+                     }
+                     if (min_wall_thickness <= 0.0f) {
+                         throw std::invalid_argument("Wall thickness must be positive");
+                     }
+                     // Validate demolding direction is normalized
+                     float len = std::sqrt(demolding_dir.x * demolding_dir.x +
+                                          demolding_dir.y * demolding_dir.y +
+                                          demolding_dir.z * demolding_dir.z);
+                     if (len < 0.01f) {
+                         throw std::invalid_argument("Demolding direction must be non-zero");
+                     }
+                     return validator.validate_region(face_indices, demolding_dir,
+                                                     min_wall_thickness);
+                 });
+             },
              "Validate a region for manufacturability\n\n"
              "Checks for:\n"
              "- Undercuts (ERROR if detected)\n"
@@ -521,7 +625,10 @@ PYBIND11_MODULE(cpp_core, m) {
              "    demolding_direction: Direction for mold removal (Vector3)\n"
              "    min_wall_thickness: Minimum wall thickness in mm (default 3.0)\n\n"
              "Returns:\n"
-             "    ConstraintReport: Complete validation report",
+             "    ConstraintReport: Complete validation report\n"
+             "Raises:\n"
+             "    ValueError: If parameters are invalid\n"
+             "    RuntimeError: If validation fails\n",
              py::arg("face_indices"),
              py::arg("demolding_direction"),
              py::arg("min_wall_thickness") = 3.0f);
@@ -565,7 +672,22 @@ PYBIND11_MODULE(cpp_core, m) {
              "    evaluator: SubDEvaluator (must be initialized)",
              py::arg("evaluator"))
 
-        .def("fit_nurbs_surface", &NURBSMoldGenerator::fit_nurbs_surface,
+        .def("fit_nurbs_surface",
+             [](NURBSMoldGenerator& gen, const std::vector<int>& face_indices,
+                int sample_density) {
+                 return safe_evaluator_call("fit_nurbs_surface", [&]() {
+                     if (face_indices.empty()) {
+                         throw std::invalid_argument("Cannot fit NURBS with no faces");
+                     }
+                     if (sample_density < 2) {
+                         throw std::invalid_argument("Sample density must be at least 2");
+                     }
+                     if (sample_density > 200) {
+                         throw std::invalid_argument("Sample density too high (max 200)");
+                     }
+                     return gen.fit_nurbs_surface(face_indices, sample_density);
+                 });
+             },
              "Sample exact limit surface and fit NURBS\n\n"
              "Samples the SubD limit surface at a regular grid using exact\n"
              "evaluation, then fits an analytical B-spline surface through\n"
@@ -575,6 +697,9 @@ PYBIND11_MODULE(cpp_core, m) {
              "    sample_density: Samples per face dimension (default 50)\n\n"
              "Returns:\n"
              "    Handle_Geom_BSplineSurface: Fitted B-spline surface (opaque type)\n\n"
+             "Raises:\n"
+             "    ValueError: If face_indices empty or sample_density invalid\n"
+             "    RuntimeError: If NURBS fitting fails\n\n"
              "Note: Return type is currently opaque. Use check_fitting_quality\n"
              "      to verify fit, or serialize to STEP/IGES for Rhino export.",
              py::arg("face_indices"),

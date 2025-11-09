@@ -46,12 +46,14 @@ class RegionListWidget(QWidget):
         # Search/filter box
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("Filter regions...")
+        self.filter_input.setToolTip("Type to filter regions by name")
         self.filter_input.textChanged.connect(self.apply_filter)
         filter_layout.addWidget(self.filter_input)
 
         # Sort combo
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Name", "Unity ↓", "Unity ↑", "Pinned First"])
+        self.sort_combo.setToolTip("Sort regions by different criteria")
         self.sort_combo.currentIndexChanged.connect(self.apply_sort)
         self.sort_combo.setMaximumWidth(100)
         filter_layout.addWidget(self.sort_combo)
@@ -93,11 +95,13 @@ class RegionListWidget(QWidget):
 
         # Batch actions
         self.pin_all_btn = QPushButton("Pin All")
+        self.pin_all_btn.setToolTip("Pin all regions for mold generation")
         self.pin_all_btn.setMaximumWidth(70)
         self.pin_all_btn.clicked.connect(self.pin_all)
         button_layout.addWidget(self.pin_all_btn)
 
         self.unpin_all_btn = QPushButton("Unpin All")
+        self.unpin_all_btn.setToolTip("Unpin all regions to exclude from mold generation")
         self.unpin_all_btn.setMaximumWidth(80)
         self.unpin_all_btn.clicked.connect(self.unpin_all)
         button_layout.addWidget(self.unpin_all_btn)
