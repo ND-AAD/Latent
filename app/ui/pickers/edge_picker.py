@@ -75,7 +75,7 @@ class SubDEdgePicker(QObject):
         """
         Extract edges from SubD mesh tessellation
 
-        Builds edge→triangle adjacency map and identifies boundary edges
+        Uses VTK's built-in vtkExtractEdges filter for reliability
 
         Args:
             polydata: The SubD mesh polydata (triangulated)
@@ -84,61 +84,40 @@ class SubDEdgePicker(QObject):
         self.edges.clear()
         self.edge_map.clear()
 
-        print(f"🔍 Extracting edges from mesh...")
+        print(f"🔍 Extracting edges using vtkExtractEdges...")
+        print(f"   Input: {polydata.GetNumberOfPoints()} points, {polydata.GetNumberOfCells()} cells")
 
-        # Get cell data
-        polys = polydata.GetPolys()
-        polys.InitTraversal()
+        # Use VTK's built-in edge extraction
+        edge_extractor = vtk.vtkExtractEdges()
+        edge_extractor.SetInputData(polydata)
+        edge_extractor.Update()
 
-        edge_id_counter = 0
-        triangle_id = 0
+        self.edge_polydata = edge_extractor.GetOutput()
+
+        num_lines = self.edge_polydata.GetNumberOfLines()
+        print(f"   Extracted {num_lines} edge lines")
+
+        # Build edge info structures from extracted edges
+        lines = self.edge_polydata.GetLines()
+        lines.InitTraversal()
 
         id_list = vtk.vtkIdList()
+        edge_id = 0
 
-        # Iterate through all triangles
-        while polys.GetNextCell(id_list):
-            if id_list.GetNumberOfIds() != 3:
-                continue  # Skip non-triangles
+        while lines.GetNextCell(id_list):
+            if id_list.GetNumberOfIds() == 2:
+                v0 = id_list.GetId(0)
+                v1 = id_list.GetId(1)
 
-            # Get three vertices of triangle
-            v0 = id_list.GetId(0)
-            v1 = id_list.GetId(1)
-            v2 = id_list.GetId(2)
+                # Create edge info
+                edge_info = EdgeInfo(v0, v1, edge_id)
+                edge_key = tuple(sorted([v0, v1]))
 
-            # Process three edges of triangle
-            for i in range(3):
-                va = [v0, v1, v2][i]
-                vb = [v0, v1, v2][(i + 1) % 3]
+                self.edges[edge_id] = edge_info
+                self.edge_map[edge_key] = edge_id
+                edge_id += 1
 
-                # Create edge key (sorted for consistency)
-                edge_key = tuple(sorted([va, vb]))
-
-                if edge_key not in self.edge_map:
-                    # New edge
-                    edge_info = EdgeInfo(va, vb, edge_id_counter)
-                    self.edges[edge_id_counter] = edge_info
-                    self.edge_map[edge_key] = edge_id_counter
-                    edge_id_counter += 1
-                else:
-                    # Existing edge
-                    edge_info = self.edges[self.edge_map[edge_key]]
-
-                # Add triangle to adjacency list
-                edge_info.adjacent_triangles.append(triangle_id)
-
-            triangle_id += 1
-
-        # Identify boundary edges (only one adjacent triangle)
-        boundary_count = 0
-        for edge_info in self.edges.values():
-            if len(edge_info.adjacent_triangles) == 1:
-                edge_info.is_boundary = True
-                boundary_count += 1
-
-        print(f"✅ Extracted {len(self.edges)} edges ({boundary_count} boundary, {len(self.edges) - boundary_count} internal)")
-
-        # Create VTK polydata for edges
-        self._create_edge_polydata()
+        print(f"✅ Extracted {len(self.edges)} edges")
 
         # Create guide visualization (cyan tubes for all edges)
         self._create_guide_visualization()
@@ -171,12 +150,15 @@ class SubDEdgePicker(QObject):
 
     def _create_guide_visualization(self):
         """Create cyan tube visualization for all edges"""
-        if not self.edge_polydata:
+        if not self.edge_polydata or self.edge_polydata.GetNumberOfLines() == 0:
+            print(f"⚠️ No edges to visualize")
             return
 
         # Remove old guide actor if exists
         if self.guide_actor:
             self.renderer.RemoveActor(self.guide_actor)
+
+        print(f"🎨 Creating edge guide visualization from {self.edge_polydata.GetNumberOfLines()} edge lines")
 
         # Create tubes for better visibility
         tube_filter = vtk.vtkTubeFilter()
@@ -198,7 +180,7 @@ class SubDEdgePicker(QObject):
 
         # Add to renderer
         self.renderer.AddActor(self.guide_actor)
-        print(f"✅ Edge guide visualization created (cyan tubes)")
+        print(f"✅ Edge guide visualization created (cyan tubes, {self.edge_polydata.GetNumberOfLines()} edges)")
 
     def pick(self, x: int, y: int, add_to_selection: bool = False) -> Optional[int]:
         """
