@@ -300,12 +300,13 @@ class SubDEdgePicker(QObject):
         points = vtk.vtkPoints()
         lines = vtk.vtkCellArray()
 
-        # Get original mesh points
-        mesh_points = self.polydata.GetPoints()
+        # CRITICAL: Use edge_polydata points (renumbered by vtkExtractEdges)
+        # NOT original mesh points - vertex indices in EdgeInfo refer to renumbered space
+        edge_points = self.edge_polydata.GetPoints()
 
-        # Build point array
-        for i in range(mesh_points.GetNumberOfPoints()):
-            points.InsertNextPoint(mesh_points.GetPoint(i))
+        # Build point array from edge_polydata (renumbered points)
+        for i in range(edge_points.GetNumberOfPoints()):
+            points.InsertNextPoint(edge_points.GetPoint(i))
 
         # Build line cells for selected edges only
         for edge_id in sorted(self.selected_edge_ids):
