@@ -26,9 +26,17 @@ void test_derivatives() {
     SubDEvaluator eval;
     eval.initialize(cage);
 
+    std::cout << "  Control faces: " << eval.get_control_face_count() << std::endl;
+    std::cout << "  Control vertices: " << eval.get_control_vertex_count() << std::endl;
+
     // Evaluate at center
     Point3D pos, du, dv;
-    eval.evaluate_limit_with_derivatives(0, 0.5f, 0.5f, pos, du, dv);
+    try {
+        eval.evaluate_limit_with_derivatives(0, 0.5f, 0.5f, pos, du, dv);
+    } catch (const std::exception& e) {
+        std::cout << "  Error: " << e.what() << std::endl;
+        throw;
+    }
 
     std::cout << "  Position: (" << pos.x << ", " << pos.y << ", " << pos.z << ")" << std::endl;
     std::cout << "  du: (" << du.x << ", " << du.y << ", " << du.z << ")" << std::endl;
