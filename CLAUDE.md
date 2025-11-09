@@ -19,8 +19,8 @@ The system maintains **exact mathematical representation** from input SubD throu
 **Correct Architecture**:
 ```
 Rhino SubD (exact)
-  → HTTP Bridge (exact rhino3dm serialization)
-  → Desktop SubD Model (exact limit surface evaluation)
+  → HTTP Bridge (control cage: vertices, faces, creases as JSON)
+  → C++ OpenSubdiv (exact limit surface evaluation via Stam eigenanalysis)
   → Parametric Regions (defined in parameter space: face_id, u, v)
   → Analysis (queries exact limit surface)
   → NURBS Surface Generation (analytical, exact)
@@ -39,106 +39,24 @@ Rhino SubD (exact)
 
 **If you find yourself converting SubD to mesh anywhere before final export, STOP and reconsider the architecture.**
 
-## UI/UX Reference
-
-The application follows **Rhino 8 standard viewport navigation** for continuity with the user's existing Rhino workflow. All viewport controls are based on the official *Rhino 8 User's Guide - Navigating Viewports* and *Selecting Objects* documentation located in `reference/RhinoUI/`.
-
-### **Rhino-Compatible Controls (DO NOT DEVIATE)**
-
-**Mouse Navigation (Perspective Viewport):**
-- **LEFT click/drag** = Select objects (window/crossing selection)
-- **RIGHT drag** = Rotate/orbit view
-- **Shift + RIGHT drag** = Pan view
-- **Ctrl + RIGHT drag** or **Mouse wheel** = Zoom in/out
-
-**Object Selection:**
-- **Left-click** = Select object (changes to yellow/selected color)
-- **Shift + Left-click** = Add to selection
-- **Ctrl + Left-click** = Remove from selection
-- **Left-drag-right** = Window selection (fully enclosed only)
-- **Left-drag-left** = Crossing selection (touching or enclosed)
-- **Esc key** = Deselect all
-
-**Sub-object Selection:**
-- **Ctrl + Shift + Left-click** = Select face/edge/vertex
-
-**Viewport Keyboard Shortcuts:**
-- **Home key** = Undo view change
-- **End key** = Redo view change
-- **Space key** = Reset camera to default view
-- **Double-click viewport title** = Maximize/restore viewport
-
-**Implementation**: The `RhinoInteractorStyle` class is implemented directly in [app/ui/viewport_3d.py](ceramic_mold_analyzer/app/ui/viewport_3d.py) (lines 30-162), extending VTK's `vtkInteractorStyleTrackballCamera` to match Rhino's behavior exactly with zero momentum/inertia. LEFT click is reserved for selection, RIGHT click handles all camera operations.
-
-**Reference Documents**:
-- `reference/RhinoUI/Rhino User's Guide - Navigating Viewports.pdf`
-- `reference/RhinoUI/Rhino User's Guide - Selecting Objects.pdf`
-
-## Quick Start Commands
-
-### Running the Application
-```bash
-# Navigate to the application directory
-cd ceramic_mold_analyzer
-
-# Quick launch (with Qt plugin auto-configuration) - RECOMMENDED
-python3 launch.py
-
-# Or directly (requires manual Qt plugin path setup)
-python3 main.py
-```
-
-**Important**: Use `launch.py` for automatic Qt plugin path configuration on macOS.
-
-### Virtual Environment Setup (First Time)
-```bash
-cd ceramic_mold_analyzer
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-**Note**: All critical dependencies are in requirements.txt:
-- PyQt6==6.9.1 (UI framework)
-- vtk==9.3.0 (3D visualization)
-- numpy==1.26.2, scipy==1.11.4 (numerical computing)
-- requests==2.31.0 (HTTP communication)
-- rhino3dm 8.17.0 (exact SubD representation - custom ARM64 build)
-
-### Testing the Application (Week 1 Complete)
-```bash
-# Launch the app
-python3 launch.py
-
-# Test VTK visualization:
-# - View → Show Test Cube (basic VTK rendering with camera controls)
-# - View → Show Test SubD Sphere (SubD control net + limit surface evaluation)
-# - View → Show Test SubD Torus (SubD geometry)
-# - View → Show Colored Cube (6 regions demonstrated with per-face coloring)
-
-# Test region workflow:
-# - Click "Analyze" to generate simulated test regions
-# - Pin/unpin regions to test state management
-# - Use Cmd+Z/Cmd+Shift+Z to test undo/redo
-# - Test menu items and keyboard shortcuts
-```
+---
 
 ## ⚡ 10-DAY API SPRINT (CURRENT MODE)
 
-**Status**: Ready to begin hybrid C++/Python implementation
+**Status**: Day 0 preparation, ready to launch Day 1
 **Timeline**: 10 days with maximum parallelization
-**Strategy**: 6-8 agents working in parallel per day
+**Strategy**: 6-8 agents working in parallel per day (67 agents total)
 **Budget**: $1000 API credits ($242-412 expected, $588-758 reserve)
+**Start Date**: November 2025
 
-### Why We Pivoted to C++/Python Hybrid NOW
+### Why Hybrid C++/Python Architecture is REQUIRED
 
-**Critical Discovery**: `rhino3dm` Python library does NOT support SubD serialization (v5.0 spec requirement).
+**Critical Discovery**: The v5.0 specification requires capabilities that pure Python cannot provide:
 
-**The v5.0 specification explicitly requires**:
-- **OpenSubdiv** (C++) for exact SubD limit surface evaluation via Stam eigenanalysis
-- **OpenCASCADE** (C++) for NURBS operations and Boolean ops
-- **pybind11** for Python-C++ bindings
-- **Mathematical operations on exact limit surfaces, display via tessellation**
+1. **OpenSubdiv** (C++) - Exact SubD limit surface evaluation via Stam eigenanalysis
+2. **OpenCASCADE** (C++) - NURBS operations and Boolean ops
+3. **pybind11** - Zero-copy bindings for C++↔Python integration
+4. **Performance** - 10-100x faster than pure Python for geometry operations
 
 This is NOT an optimization - it's a **fundamental requirement** for the lossless architecture.
 
@@ -146,630 +64,414 @@ This is NOT an optimization - it's a **fundamental requirement** for the lossles
 
 **All sprint docs located in**: `docs/reference/api_sprint/`
 
-**Quick access**:
-- **QUICK_START.md** - Daily launch commands ⭐ **START HERE FOR DAILY WORK**
-- **MASTER_ORCHESTRATION.md** - Complete agent-by-agent details
-- **10_DAY_SPRINT_STRATEGY.md** - Full 10-day breakdown
-- **IMPLEMENTATION_ROADMAP.md** - Technical specification roadmap
-- **agent_tasks/day_XX/** - Individual agent task files (67 total)
+**Quick Reference**:
+- **QUICK_START.md** - Daily launch commands ⭐ **START HERE**
+- **MASTER_ORCHESTRATION.md** - Agent-by-agent details
+- **10_DAY_SPRINT_STRATEGY.md** - Complete 10-day breakdown
+- **IMPLEMENTATION_ROADMAP.md** - Technical roadmap
+- **agent_tasks/day_XX/** - 67 individual agent task files
 
-### Sprint Workflow for Claude Code Agents
+### Custom Slash Commands
 
-**When working as a sprint agent** (launched from task file):
-
-1. ✅ **Read the entire task file** - All context is provided
-2. ✅ **Work completely autonomously** - No need to ask for clarification
-3. ✅ **Implement ALL deliverables** - Files, tests, documentation
-4. ✅ **Test your work before completing** - Run all tests in task file
-5. ✅ **Provide integration notes** - How your work fits with others
-6. ✅ **Mark success criteria** - Confirm all checkboxes met
-
-**Critical**: Each agent MUST run provided tests and confirm passing before marking task complete.
-
-### Sprint Architecture (Hybrid C++/Python from Day 1)
-
-**Technology Stack (Production)**:
-- **C++ Core** (OpenSubdiv 3.6+, OpenCASCADE 7.x)
-  - Exact SubD limit surface evaluation (Stam 1998 eigenanalysis)
-  - NURBS operations and Boolean ops
-  - Mathematical analysis algorithms (curvature, spectral, etc.)
-  - 10-100x performance vs pure Python
-  - GPU acceleration via Metal backend (macOS)
-
-- **Python Layer** (PyQt6 6.9.1, VTK 9.3.0)
-  - UI framework and user interaction
-  - State management and undo/redo
-  - Rhino communication (HTTP bridge)
-  - Workflow orchestration
-  - File I/O
-
-- **pybind11 Bindings**
-  - Zero-copy numpy array sharing
-  - Seamless C++↔Python integration
-  - Expose C++ classes to Python
-
-### Agent Task Files and Testing Requirements
-
-**Every agent MUST complete these steps before marking their task as done:**
-
-1. ✅ **Implement ALL deliverables** specified in their task file
-2. ✅ **Write and run tests** - Each agent task file includes testing requirements
-3. ✅ **Verify success criteria** - All checkboxes must be marked
-4. ✅ **Provide integration notes** - Document dependencies and file placement
-5. ✅ **Report any issues** encountered during implementation
-
-**Testing is non-negotiable.** Agents should NOT report completion until:
-- Code compiles without errors (C++)
-- All imports work (Python)
-- Provided test code runs successfully
-- Success criteria checkboxes are verified
-
-### Custom Slash Commands for Agent Launching
-
-**Quick Launch Commands** (to be implemented in `.claude/commands/`):
+**Available commands** (in `.claude/commands/`):
 
 ```bash
 # Launch full day batches
 /launch-day1-morning    # Agents 1-6 in parallel
 /launch-day1-evening    # Agents 7-9 in parallel
-/launch-day2-morning    # Agents 10-15 in parallel
 
-# Launch individual agents
-/agent-01    # Read and complete AGENT_01_types_data_structures.md
-/agent-04    # Read and complete AGENT_04_subd_evaluator_impl.md
-
-# Integration helpers
-/integrate-day1    # Run all Day 1 integration tests
-/build-cpp        # Build C++ core and run tests
+# Integration and build
+/integrate-day1         # Run all Day 1 integration tests
+/build-cpp             # Build C++ core and run tests
 ```
 
-**Usage Pattern:**
+**Usage**:
 ```
 You: /launch-day1-morning
 Claude: [Launches 6 agents in parallel, each reading their task file]
-
-You: /integrate-day1
-Claude: [Runs CMake build, Python tests, verifies all Day 1 deliverables]
 ```
 
-### Alignment with v5.0 Specification
+### Sprint Best Practices (From Comprehensive Review)
 
-This sprint implementation follows **subdivision_surface_ceramic_mold_generation_v5.md** and **technical_implementation_guide_v5.md** exactly:
+**Agent Execution**:
+1. ✅ Each agent reads entire task file autonomously
+2. ✅ Implements ALL deliverables before reporting complete
+3. ✅ Runs all tests and verifies success criteria
+4. ✅ Provides integration notes for subsequent agents
+5. ✅ Reports actual completion (not partial)
 
-**✅ Parametric Region Architecture** (v5.0 §3.1):
-- Regions defined in (face_id, u, v) parameter space
-- Agent 1 creates ParametricRegion data structure
-- All analysis engines query regions in parameter space
+**Path Conventions**:
+- **Python modules**: `app/` (NOT `ceramic_mold_analyzer/app/`)
+- **C++ source**: `cpp_core/geometry/`, `cpp_core/analysis/`, etc.
+- **Tests**: `tests/`
+- **Python imports**: `from app.bridge import RhinoBridge` (simple, direct)
+- **Always use relative paths** in scripts and commands
 
-**✅ Lossless Until Fabrication** (v5.0 §2.2):
-- Control cage transferred as JSON (vertices, faces, creases)
-- OpenSubdiv provides exact limit surface evaluation
-- Tessellation only for display, never for analysis
-- Single approximation point at G-code export
+**Critical Distinctions**:
+- **Control cage transfer** = Exact, lossless ✅ (vertices, faces, creases)
+- **Mesh transfer** = Approximation, lossy ❌ (Week 3 workaround - being replaced)
 
-**✅ Mathematical Lenses** (v5.0 §4):
-- Day 4-5: Differential Decomposition (curvature analysis)
-- Day 5: Spectral Decomposition (Laplace-Beltrami eigenfunctions)
-- Future: Flow, Morse, Thermal, Slip Flow lenses
+**Module Naming**:
+- C++ Python extension: `cpp_core` (imported as `import cpp_core`)
+- NOT `latent_core` (outdated naming)
 
-**✅ OpenSubdiv Integration** (Technical Guide §2.1):
-- Day 1: SubDEvaluator wrapper for TopologyRefiner
-- Stam 1998 eigenanalysis for exact evaluation
-- Metal backend for GPU acceleration (macOS)
-- Catmull-Clark subdivision scheme
+---
 
-**✅ OpenCASCADE Integration** (Technical Guide §3.1):
-- Day 7: NURBS surface fitting from exact limit points
-- Day 7: Draft angle transformation
-- Day 7: Solid Brep creation for molds
+## UI/UX Reference
 
-**✅ pybind11 Bindings** (Technical Guide §4.1):
-- Day 1: Initial bindings for SubDEvaluator
+The application follows **Rhino 8 standard viewport navigation** for continuity with the user's existing Rhino workflow.
+
+### **Rhino-Compatible Controls (DO NOT DEVIATE)**
+
+**Mouse Navigation (Perspective Viewport)**:
+- **LEFT click/drag** = Select objects (window/crossing selection)
+- **RIGHT drag** = Rotate/orbit view
+- **Shift + RIGHT drag** = Pan view
+- **Ctrl + RIGHT drag** or **Mouse wheel** = Zoom in/out
+
+**Object Selection**:
+- **Left-click** = Select object (yellow highlighting)
+- **Shift + Left-click** = Add to selection
+- **Ctrl + Left-click** = Remove from selection
+- **Esc key** = Deselect all
+
+**Sub-object Selection**:
+- **Ctrl + Shift + Left-click** = Select face/edge/vertex
+
+**Implementation**: Custom interactor in `app/ui/viewport_3d.py` extending base `vtkInteractorStyle` with manual camera control implementation to ensure LEFT click does NOT move camera.
+
+**Reference Documents**:
+- `docs/reference/RhinoUI/Rhino User's Guide - Navigating Viewports.pdf`
+- `docs/reference/RhinoUI/Rhino User's Guide - Selecting Objects.pdf`
+
+---
+
+## Quick Start Commands
+
+### Running the Application
+```bash
+# Quick launch (recommended - auto-configures Qt plugins)
+python3 launch.py
+
+# Or directly (requires manual Qt plugin path setup)
+python3 main.py
+```
+
+### Testing the Application
+```bash
+# Launch the app
+python3 launch.py
+
+# Test VTK visualization:
+# - View → Show Test Cube
+# - View → Show Test SubD Sphere
+# - View → Show Test SubD Torus
+# - View → Show Colored Cube (6-region demo)
+
+# Test region workflow:
+# - Click "Analyze" for simulated regions
+# - Pin/unpin regions
+# - Use Cmd+Z/Cmd+Shift+Z for undo/redo
+```
+
+---
+
+## Sprint Architecture (Hybrid C++/Python)
+
+**Technology Stack**:
+
+**C++ Core** (OpenSubdiv 3.6+, OpenCASCADE 7.x):
+- Exact SubD limit surface evaluation (Stam eigenanalysis)
+- NURBS operations and Boolean ops
+- Mathematical analysis (curvature, spectral, etc.)
+- GPU acceleration via Metal backend (macOS)
+
+**Python Layer** (PyQt6 6.9.1, VTK 9.3.0):
+- UI framework and user interaction
+- State management and undo/redo
+- Rhino communication (HTTP bridge)
+- Workflow orchestration
+- File I/O
+
+**pybind11 Bindings**:
 - Zero-copy numpy array sharing
-- All C++ classes exposed to Python layer
+- Seamless C++↔Python integration
+- All C++ classes exposed to Python
 
-### Current Implementation (v0.4.0 - Desktop Application)
-The project has transitioned from a Grasshopper-based implementation (archived in `.Archive/251013/`) to a professional PyQt6 desktop application.
+---
 
-**Core Components:**
-- [main.py](ceramic_mold_analyzer/main.py) - PyQt6-based desktop UI with mathematical lens selection, 3D viewport, region management
-- [app/state/app_state.py](ceramic_mold_analyzer/app/state/app_state.py) - Centralized state with undo/redo, region tracking, history management
-- [app/bridge/rhino_bridge.py](ceramic_mold_analyzer/app/bridge/rhino_bridge.py) - HTTP communication framework for live Rhino sync (stub implementation)
-- [app/ui/](ceramic_mold_analyzer/app/ui/) - Modular PyQt6 widgets for viewport, region lists, constraints
-- [rhino/http_server.py](ceramic_mold_analyzer/rhino/http_server.py) - Grasshopper component for SubD serialization
+## Data Flow (LOSSLESS)
 
-**Mathematical Analysis Engines** (To be implemented):
-- **Flow/Geodesic Decomposition** - Drainage basins via heat method for geodesic computation
-- **Spectral Decomposition** - Vibration modes via Laplace-Beltrami eigenfunctions
-- **Differential Decomposition** - Curvature-based analysis (ridges, valleys, principal curvatures)
-- **Topological Decomposition** - Critical point and flow pattern analysis
-- **Note**: Reference implementations exist in `.Archive/251013/decomposition_engines/` but use RhinoCommon API (incompatible with standalone). The standalone app will implement these algorithms fresh using numpy/scipy operating on **exact SubD limit surface evaluation**, NOT mesh approximations.
+**1. Rhino → Desktop**:
+- SubD control cage extracted in Grasshopper
+- Transferred as JSON: `{vertices: [[x,y,z],...], faces: [[i,j,k,...],...], creases: [[i,j,sharpness],...]}`
+- NO mesh conversion - preserves exact topology
 
-### Key Design Patterns
+**2. C++ OpenSubdiv**:
+- Build TopologyRefiner from control cage
+- Exact limit surface evaluation at any (u,v) parameter
+- Tessellation for display only (VTK viewport)
 
-#### Signal/Slot Architecture (PyQt6)
-All UI updates are driven by signals from the `ApplicationState`:
-```python
-# State emits signals automatically
-self.state.set_regions(new_regions)  # Emits regions_updated signal
+**3. Analysis**:
+- Mathematical lenses query exact limit surface
+- Regions defined in parametric space (face_id, u, v)
+- Curvature from exact surface derivatives
+- All analysis on true limit surface, not mesh
 
-# UI components connect to signals
-self.state.regions_updated.connect(self.on_regions_updated)
-```
+**4. Mold Generation**:
+- Evaluate exact limit surface at high resolution
+- Fit analytical NURBS through sampled points
+- Apply draft transformation (exact vector math)
+- Create mold solids with Boolean ops (exact)
 
-#### Centralized State Management
-ALL state changes flow through `ApplicationState` - never modify data directly:
-```python
-# Correct - goes through state manager
-self.state.set_region_pinned(region_id, True)
+**5. Export**:
+- Send NURBS molds to Rhino (exact)
+- **ONLY at STL/G-code export: single approximation**
 
-# Wrong - bypasses history and signals
-region.pinned = True  # Don't do this!
-```
+---
 
-#### Undo/Redo History System
-The state manager automatically tracks changes via `_add_history_item()`:
-- Each state-changing operation adds a history item
-- Undo/redo operations restore previous states
-- History is limited to 100 items (configurable)
+## Current Implementation Status
 
-#### Pin-Based Workflow
-Users "pin" regions to preserve them across re-analysis:
-- Pinned regions are excluded from new analysis
-- Only unpinned faces are re-analyzed
-- Allows incremental refinement of decompositions
+**Phase 0 (Weeks 1-4)**: Desktop UI Foundation - **COMPLETE** ✅
+- PyQt6 application with multi-viewport system
+- VTK 3D visualization with Rhino-compatible controls
+- Edit mode system (Solid/Panel/Edge/Vertex)
+- Selection/picking system with unified yellow highlighting
+- Undo/redo with history management
+- HTTP bridge to Grasshopper (mesh transfer - temporary)
 
-### Data Flow (LOSSLESS)
+**Next: 10-Day Sprint** (Phase 0 + Phase 1 MVP)
+- Day 1-2: C++ core with OpenSubdiv integration
+- Day 3-5: Mathematical lenses (Differential, Spectral)
+- Day 6: Constraint validation (undercuts, draft angles)
+- Day 7-8: NURBS mold generation with OpenCASCADE
+- Day 9-10: Testing, polish, documentation
 
-1. **Rhino → Desktop**: **Exact SubD** serialized via HTTP bridge using `rhino3dm` (NOT mesh!)
-   - Control mesh vertices and topology preserved
-   - Vertex valences, edge creases, face adjacency maintained
-   - Catmull-Clark subdivision structure intact
-   - Display mesh generated separately for viewport only
-
-2. **Analysis**: Mathematical lenses query **exact limit surface** to discover coherent regions
-   - Curvature computed from exact surface derivatives
-   - Geodesics calculated on continuous surface
-   - Eigenfunctions evaluated on true geometry
-   - Regions defined in parametric space (face_id, u, v)
-
-3. **User Interaction**: Pin regions, adjust parametric boundaries, validate constraints
-   - All edits maintain parametric definitions
-   - Boundaries remain curves in parameter space
-   - No mesh dependency for region definitions
-
-4. **Generation**: Create **NURBS mold surfaces** from parametric regions (planned)
-   - Evaluate exact limit surface at high resolution
-   - Apply draft transformation (exact vector math)
-   - Fit analytical NURBS through evaluated points
-   - Mold solids constructed with exact Brep operations
-
-5. **Export**: Send **exact mold geometry** back to Rhino, or export to fabrication
-   - **ONLY at STL/G-code export does approximation occur**
-   - All other operations maintain exact representation
-
-## Development Status
-
-### ✅ Completed Features (Weeks 1-3)
-
-#### Week 1: VTK Visualization (COMPLETE)
-- Desktop application launches with full UI
-- **Qt plugin path auto-configuration** via launch.py
-- Menu system (File, Edit, Analysis, View, Help) with keyboard shortcuts
-- Mathematical lens selection (Flow, Spectral, Curvature, Topological)
-- **VTK 3D visualization integrated with PyQt6**
-  - Control net rendering of SubD geometry
-  - Camera controls: orbit, pan, zoom, reset (Rhino-compatible)
-  - Axes helper and grid plane for orientation
-- **Test geometry visualization** - Cube, colored cube, SubD sphere/torus
-- Simulated region discovery and management
-- Pin/unpin workflow for region preservation
-- Undo/redo system with complete history tracking
-- Three-tier constraint validation framework (display only)
-
-#### Week 2: Multi-Viewport System (COMPLETE)
-- **ViewportLayoutManager** with 4 layout modes:
-  - Single viewport
-  - Two Horizontal (top/bottom split)
-  - Two Vertical (left/right split)
-  - Four Grid (2x2 layout)
-- **Per-viewport features**:
-  - Independent camera controls
-  - View type labels (Perspective, Top, Front, etc.)
-  - Active viewport indicators (green border)
-  - Context menu for changing view types
-- **Fixed all UI issues**: Proper labeling, active viewport system, view type setting
-
-#### Week 3: HTTP Bridge (COMPLETE - WITH LIMITATIONS)
-- **Grasshopper HTTP Server** on port 8888
-  - Two versions: Full (with 3dm serialization) and Simplified (for testing)
-  - Successfully transfers SubD metadata (vertex/face/edge counts)
-  - Connection status monitoring
-  - Update detection system
-- **Desktop Client**:
-  - RhinoBridge class with full HTTP communication
-  - Automatic polling for geometry updates
-  - Connection status indicator in UI
-- **Current Limitation**: Using simplified transfer (metadata only) due to IronPython serialization issues
-  - Placeholder visualization (parametric torus) based on complexity
-  - Architecture ready for full geometry transfer when serialization fixed
-
-#### Week 4: Edit Mode & Selection System (COMPLETE ✅)
-- **Edit Mode Infrastructure** ✅
-  - EditModeManager with 4 modes: Solid, Panel, Edge, Vertex
-  - Mode selector toolbar with S/P/E/V buttons
-  - Visual indicators for active mode
-  - Proper initialization on viewport startup
-- **VTK Picking System** ✅
-  - SubDFacePicker, SubDEdgePicker, SubDVertexPicker classes fully implemented
-  - Integration with CustomCameraInteractor via pick callbacks
-  - LEFT click reserved for selection (no camera movement)
-  - Shift key detection for multi-select
-- **ALL Selection Modes Working** ✅
-  - **Solid Mode (S)**: View-only, no selection (intentional design)
-  - **Panel Mode (P)**: Face selection with yellow highlighting
-  - **Edge Mode (E)**: Edge selection with yellow highlighting, cyan wireframe guide
-  - **Vertex Mode (V)**: Vertex selection with yellow spheres
-  - Multi-select with Shift+Click (add/remove from selection)
-  - Selection toggle (Shift+Click on selected element deselects it)
-- **Visual Feedback** ✅
-  - Unified yellow highlighting for all selection types (1.0, 1.0, 0.0)
-  - HighlightManager with proper VTK selection extraction
-  - Thick, tubular edge rendering for visibility
-  - Vertex spheres for point selection
-- **Architecture** ✅
-  - Pick callbacks properly connected to interactor style
-  - Selection state tracked per viewport (selected_faces, selected_edges, selected_vertices)
-  - Geometry actor pickability controlled per mode
-  - Edge actor created on-demand with proper extraction
-  - Ready for OpenSubdiv integration (future)
-
-### ✅ Weeks 1-4 FULLY COMPLETE - Ready for Week 5
-
-**Current Status (November 3, 2025)**:
-- ✅ Core application fully functional with professional UI
-- ✅ Multi-viewport system with independent camera controls
-- ✅ **Geometry transfer from Rhino working** (mesh representation via HTTP on port 8800)
-- ✅ **Edit mode system FULLY operational** - All 4 modes working (Solid/Panel/Edge/Vertex)
-- ✅ **Selection/picking system COMPLETE** - All modes with multi-select functional
-- ✅ **Unified yellow highlighting** for consistent visual feedback
-- ✅ Face, edge, and vertex selection all working with Shift+Click multi-select
-- ✅ ~40% of MVP complete (Weeks 1-4 of 10-week plan)
-
-**Next Priority: Week 5 - Differential Decomposition (First Mathematical Lens)**
-
-### 🚧 Priority Development Needed (Week 5+)
-1. **Differential Decomposition** (Week 5) - First working mathematical lens ⬅️ NEXT
-2. **Iteration Management** (Week 6) - Design snapshot system
-3. **Constraint Validation** (Week 7) - Physical checks (undercuts, draft angles)
-4. **NURBS Generation** (Week 8) - Create manufacturable mold surfaces
-5. **Architecture Transition** (Future) - OpenCASCADE + OpenSubdiv integration
-6. **Full Lossless Transfer** (Enhancement) - True SubD serialization (not mesh)
-7. **Additional Mathematical Lenses** (Post-MVP) - Spectral, Flow, Topological
-8. **File I/O** (Post-MVP) - Save/load session state
-
-### 📁 Archive Structure
-Legacy Grasshopper implementation in `.Archive/251013/` is **REFERENCE ONLY**:
-- Contains mathematical decomposition engines (spectral, differential, morse) using RhinoCommon API
-- Multi-basis analysis with resonance scoring concepts
-- Extensive development history showing evolution of mathematical approaches
-- **CRITICAL**: Do NOT copy, import, or link to Archive files
-  - They use RhinoCommon/IronPython (incompatible with standalone Python)
-  - They require Rhino.Geometry API (not available outside Rhino/GH)
-  - Different technology stack entirely
-- **DO**: Study the mathematical concepts and algorithms
-- **THEN**: Implement fresh versions using numpy/scipy/VTK for standalone app
-- Active codebase is in `ceramic_mold_analyzer/` only
+---
 
 ## File Structure
+
 ```
-ceramic_mold_analyzer/          # Main desktop application
-├── main.py                     # Application entry point with MainWindow
-├── launch.py                   # Quick launcher with Qt plugin auto-config
-├── requirements.txt            # All dependencies (PyQt6, VTK, numpy, scipy, requests, rhino3dm)
-├── app/
+Latent/                         # Project root
+├── main.py                     # Application entry point
+├── launch.py                   # Quick launcher (Qt config)
+├── requirements.txt            # Python dependencies
+├── app/                        # Python application modules
 │   ├── state/
-│   │   └── app_state.py        # ApplicationState, ParametricRegion, HistoryItem
+│   │   ├── app_state.py       # Centralized state management
+│   │   └── edit_mode.py       # Edit mode state
 │   ├── bridge/
-│   │   └── rhino_bridge.py     # RhinoBridge, SubDGeometry (COMPLETE)
+│   │   └── rhino_bridge.py    # HTTP communication (stub)
 │   ├── geometry/
-│   │   └── subd_display.py     # SubD visualization helpers (VTK actors)
+│   │   └── subd_display.py    # VTK visualization helpers
 │   └── ui/
-│       ├── viewport_3d.py      # Viewport3D with VTK integration, Rhino controls
-│       ├── viewport_layout.py  # ViewportLayoutManager for multi-viewport (COMPLETE)
-│       ├── region_list.py      # RegionListWidget
-│       └── constraint_panel.py # ConstraintPanel
-├── rhino/
-│   ├── grasshopper_http_server.py        # Full server with 3dm serialization (issues)
-│   └── grasshopper_http_server_simple.py # Simplified server (WORKING)
-├── test_rhino_connection.py   # Connection testing utility
-├── tests/                      # Unit tests (to be created)
-└── venv/                       # Virtual environment (not in version control)
-
-.Archive/251013/                # Legacy Grasshopper implementation (REFERENCE ONLY)
-├── decomposition_engines/      # Mathematical analysis algorithms
-│   ├── spectral_decomposition_fixed.py    # Rhino 8 compatible
-│   ├── differential_decomposition_fixed.py # Rhino 8 compatible
-│   └── morse_decomposition_fixed.py       # Rhino 8 compatible
-├── multibasis_*.py            # Multi-lens analysis tools
-└── (various diagnostic tools)
-
-reference/                      # Technical documentation
-├── SubD_Ceramic_Mold_Generation_Specification_v4.md
-├── SlipCasting_Ceramics_Technical_Reference.md
-├── UX_UI_DESIGN_SPECIFICATION.md
-└── UX/                         # React/TypeScript design prototype
-    ├── src/App.tsx             # Shows critical features:
-    │                             - Edit modes: solid/panel/edge/vertex
-    │                             - Viewport layouts: 1/2H/2V/4-grid
-    │                             - Iteration management system
-    │                             - Multiple view types per viewport
-    └── src/components/         # Full UI component library
+│       ├── viewport_3d.py     # 3D viewport with Rhino controls
+│       ├── viewport_layout.py # Multi-viewport manager
+│       ├── region_list.py     # Region list widget
+│       └── edit_mode_toolbar.py # Edit mode selector
+├── cpp_core/                   # C++ geometry kernel (Sprint Day 1+)
+│   ├── geometry/
+│   │   ├── types.h            # Point3D, SubDControlCage, etc.
+│   │   ├── subd_evaluator.h/cpp # OpenSubdiv wrapper
+│   │   └── ...
+│   ├── analysis/              # Mathematical analysis (Day 4+)
+│   ├── constraints/           # Validation (Day 6+)
+│   ├── python_bindings/       # pybind11 bindings
+│   │   └── py_bindings.cpp
+│   └── CMakeLists.txt         # Build configuration
+├── rhino/                      # Grasshopper components
+│   ├── grasshopper_server_control.py        # Current (mesh transfer)
+│   └── grasshopper_http_server_control_cage.py # Sprint Day 1 (control cage)
+├── tests/                      # Test suite
+└── docs/reference/             # Technical specifications
+    ├── api_sprint/            # Sprint documentation
+    ├── subdivision_surface_ceramic_mold_generation_v5.md
+    ├── technical_implementation_guide_v5.md
+    └── SlipCasting_Ceramics_Technical_Reference.md
 ```
 
-## Development Workflow
+---
 
-### General Development Principles
+## Development Best Practices
 
-**Refactor as You Go - Keep the Codebase Clean**:
-- Remove temporary files (debug scripts, progress tracking docs, blocker files) once issues are resolved
-- If you create temporary documentation for tracking issues, clean it up after completion
-- Delete obsolete code and commented-out sections rather than leaving them around
-- **Consolidate related functionality** - don't create separate utility files when code can live in the main file (example: `RhinoInteractorStyle` is now directly in `viewport_3d.py` instead of a separate file)
-- Keep only the essential files: source code, tests, main documentation (CLAUDE.md, ROADMAP, STATUS, README)
-- Update existing documentation rather than creating new tracking files
-- The goal is a clean, professional codebase without stray artifacts
+### Path Conventions
 
-**Recent Updates (November 2025)**:
+**CRITICAL**: Always use correct paths
+- ✅ `app/ui/viewport_3d.py`
+- ❌ `ceramic_mold_analyzer/app/ui/viewport_3d.py`
 
-**Week 4 - Selection System Complete**:
-- ✅ Fixed geometry transfer from Rhino (port 8800, mesh representation)
-- ✅ Implemented complete picking system for all edit modes
-- ✅ All selection modes working: Solid (view-only), Panel, Edge, Vertex
-- ✅ Multi-select with Shift+Click for faces, edges, and vertices
-- ✅ Unified yellow highlighting (1.0, 1.0, 0.0) for all selection types
-- ✅ Edge highlighting fixed to show only selected edges (not all edges)
-- ✅ Proper VTK selection extraction and visual feedback
+**Imports**:
+```python
+from app.state.app_state import ApplicationState
+from app.bridge.rhino_bridge import RhinoBridge
+```
 
-**Week 1-3 Foundation**:
-- ✅ Fixed viewport controls to match Rhino exactly: LEFT click for selection, RIGHT click for camera
-- ✅ Implemented clean CustomCameraInteractor with proper event handling
-- ✅ Multi-viewport system (4 layouts) with independent cameras
-- ✅ HTTP bridge for Rhino geometry transfer (Grasshopper manual push)
+### State Management
 
-### Implementing Mathematical Lenses
+**Always go through ApplicationState**:
+```python
+# Correct
+self.state.set_region_pinned(region_id, True)  # Emits signals, adds history
 
-1. Study conceptual approach in `.Archive/251013/decomposition_engines/` (mathematical logic only)
-2. Create NEW analysis module in `ceramic_mold_analyzer/app/analysis/` that follows this interface:
-   ```python
-   def analyze_geometry(subd_geometry: SubDGeometry,
-                        pinned_faces: List[int] = []) -> List[ParametricRegion]:
-       """
-       Returns: List of ParametricRegion objects with:
-       - id: Unique identifier
-       - faces: Face indices in this region
-       - unity_principle: Description of what unifies this region
-       - unity_strength: 0.0-1.0 "resonance score"
-       """
-   ```
-3. Add lens option to [main.py:126-129](ceramic_mold_analyzer/main.py#L126-L129) in the Analysis menu
-4. Add corresponding radio button in [main.py:155-163](ceramic_mold_analyzer/main.py#L155-L163)
-5. Update `run_analysis()` method to call your analysis function
-6. Test with various SubD forms and document resonance patterns
+# Wrong
+region.pinned = True  # Bypasses signals and history!
+```
 
-### Extending the UI
+### Rhino Communication
 
-- Follow PyQt6 signal/slot patterns established in existing components
-- All state changes MUST go through `ApplicationState` to maintain history
-- Use consistent styling (70/30 viewport/controls split via splitter)
-- Maintain pin metaphor for user workflow
-- Group related controls in `QGroupBox` widgets
-- Use emojis sparingly in buttons (only where established: 🔨 📤)
+**Control cage transfer** (correct, lossless):
+```python
+# Grasshopper extracts control cage
+cage_data = {
+    'vertices': [[x,y,z], ...],  # Control vertices
+    'faces': [[i,j,k,...], ...], # Face topology
+    'creases': [[i,j,s], ...]    # Edge sharpness
+}
 
-### Implementing Analysis Engines (NOT Porting)
+# Desktop converts to C++ SubDControlCage
+cage = cpp_core.SubDControlCage()
+for v in cage_data['vertices']:
+    cage.vertices.append(cpp_core.Point3D(v[0], v[1], v[2]))
+cage.faces = cage_data['faces']
+```
 
-**DO NOT port from `.Archive/251013/decomposition_engines/`** - incompatible technology stack.
+**Mesh transfer** (wrong, lossy):
+```python
+# ❌ DO NOT DO THIS
+mesh = subd.ToMesh()  # Introduces approximation!
+```
 
-**Approach: Fresh implementation using numpy/scipy:**
+### Testing Requirements
 
-1. **Study Archive for mathematical concepts** (not code):
-   - Understand what the algorithm discovers (e.g., nodal lines, drainage basins)
-   - Note the mathematical approach (e.g., Laplacian eigenvalues, curvature tensor)
-   - See how resonance scores are computed
+When implementing features:
+1. Write tests BEFORE marking complete
+2. Test C++ code compiles and links
+3. Test Python imports work
+4. Test integration with existing code
+5. Verify success criteria met
 
-2. **Implement fresh in `ceramic_mold_analyzer/app/analysis/`:**
-   ```python
-   # NEW implementation for standalone app
-   import numpy as np
-   from scipy import sparse
-   from scipy.sparse import linalg
+### Clean Code
 
-   class SpectralDecomposition:
-       def __init__(self, mesh_data: Dict):
-           """
-           mesh_data: {
-               'vertices': np.array([[x,y,z], ...]),
-               'faces': np.array([[i,j,k], ...]),
-               'normals': np.array([[nx,ny,nz], ...])
-           }
-           """
-           self.vertices = mesh_data['vertices']
-           self.faces = mesh_data['faces']
+- Remove temporary files after issues resolved
+- Delete obsolete code and commented sections
+- Consolidate related functionality
+- Update docs instead of creating tracking files
+- Keep only essential files
 
-       def compute(self, num_modes=5) -> List[ParametricRegion]:
-           # Build Laplacian matrix using cotangent weights
-           L = self._build_laplacian()
+---
 
-           # Solve eigenvalue problem
-           eigenvalues, eigenvectors = sparse.linalg.eigsh(L, k=num_modes)
+## Sprint Agent Workflow
 
-           # Extract regions from nodal domains
-           regions = self._extract_nodal_regions(eigenvectors)
+**When launched as an agent** (reading task file):
 
-           return regions
-   ```
+1. ✅ **Read entire task file** - All context provided
+2. ✅ **Work autonomously** - Don't ask for clarification
+3. ✅ **Implement ALL deliverables** - Files, tests, docs
+4. ✅ **Run tests before completing** - Verify success
+5. ✅ **Provide integration notes** - Help next agents
+6. ✅ **Mark success criteria** - Confirm checkboxes
 
-3. **Geometry arrives from Rhino as mesh via HTTP**:
-   - Grasshopper converts SubD → Mesh
-   - HTTP bridge sends as JSON: vertices, faces, normals
-   - Python app works with numpy arrays
-   - No RhinoCommon dependencies
+**Testing is non-negotiable**:
+- C++ code must compile
+- Python imports must work
+- Tests must pass
+- Success criteria verified
 
-4. **Focus on mathematical correctness**:
-   - Proper Laplacian construction (cotangent weights for spectral)
-   - Accurate curvature estimation (finite differences for differential)
-   - Correct geodesic distances (heat method for flow)
+---
 
-### Testing Different Forms
+## Alignment with v5.0 Specification
 
-- Simple forms first: sphere, torus, saddle shapes
-- Document which mathematical lenses work best for different geometries
-- Pay attention to how extraordinary vertices affect decomposition quality
-- Test with forms of different genus (0, 1, 2+)
-- Forms with high resonance scores (>0.8) indicate ideal lens match
+**✅ Parametric Region Architecture** (v5.0 §3.1):
+- Regions in (face_id, u, v) parameter space
+- All analysis queries exact limit surface
+
+**✅ Lossless Until Fabrication** (v5.0 §2.2):
+- Control cage → OpenSubdiv → Exact evaluation
+- Single approximation at G-code export
+
+**✅ Mathematical Lenses** (v5.0 §4):
+- Differential (curvature-based)
+- Spectral (Laplace-Beltrami eigenfunctions)
+- Flow, Morse, Thermal, Slip (future)
+
+**✅ OpenSubdiv Integration** (Tech Guide §2.1):
+- Stam eigenanalysis for exact evaluation
+- Metal backend (GPU acceleration)
+- Catmull-Clark subdivision
+
+**✅ OpenCASCADE Integration** (Tech Guide §3.1):
+- NURBS surface fitting from limit points
+- Draft angle transformation
+- Boolean operations for solids
+
+---
 
 ## Technical Philosophy
 
-The application embodies the principle that **every form contains inherent mathematical coherences**. Different analytical lenses (spectral, differential, morse, topological) reveal different truths about a form's structure. The goal is eloquence over complexity - finding decompositions that create profound mathematical poetry written in light through translucent porcelain.
+**Every form contains inherent mathematical coherences.** Different analytical lenses reveal different truths. The goal is eloquence over complexity - finding decompositions that create profound mathematical poetry written in light through translucent porcelain.
 
 ### Constraint Hierarchy
-1. **Mathematical** - Respects the form's inherent structure (high resonance score)
-2. **Physical** - Accounts for ceramic material properties (wall thickness, draft angles)
-3. **Manufacturing** - Ensures molds can be 3D printed and demolded
+1. **Mathematical** - High resonance score (form "wants" this)
+2. **Physical** - Ceramic properties (wall thickness, draft)
+3. **Manufacturing** - 3D printing and demolding feasibility
 
 ### Resonance Scores
-- **0.8-1.0**: Excellent fit - the form "wants" this decomposition
-- **0.6-0.8**: Good fit - reveals important structure
-- **0.4-0.6**: Moderate fit - usable but not ideal
-- **0.0-0.4**: Poor fit - consider different lens
+- **0.8-1.0**: Excellent - form wants this decomposition
+- **0.6-0.8**: Good - reveals important structure
+- **0.4-0.6**: Moderate - usable but not ideal
+- **0.0-0.4**: Poor - try different lens
 
-## Common Patterns
-
-### State Updates
-```python
-# Always emit signals for UI reactivity
-self.state.set_regions(new_regions)  # Automatically emits regions_updated signal
-self.state.set_region_pinned(region_id, True)  # Emits region_pinned signal
-
-# Connect to signals in UI components
-self.state.regions_updated.connect(self.on_regions_updated)
-```
-
-### Adding History Items
-```python
-# Happens automatically in state methods, but if adding new state operations:
-self.state._add_history_item(
-    action="action_name",
-    data={"key": value},
-    description="Human-readable description for UI"
-)
-```
-
-### Rhino Communication (LOSSLESS - when implemented)
-```python
-# Check connection before operations
-if self.rhino_bridge.is_connected():
-    # Fetch EXACT SubD (not mesh!)
-    subd_model = self.rhino_bridge.fetch_subd()  # Returns SubDModel with exact evaluation
-
-    # WRONG: Don't do this!
-    # mesh = self.rhino_bridge.fetch_mesh()  # ❌ BREAKS LOSSLESS PRINCIPLE
-
-# Send exact mold geometry back to Rhino
-# Molds are NURBS Breps (exact), not meshes
-self.rhino_bridge.send_molds(nurbs_mold_pieces)
-```
-
-**Critical**: The bridge must transfer `rhino3dm.SubD` objects, NOT meshes. Display meshes are generated on-demand in the desktop app for visualization only.
-
-### Working with Regions
-```python
-# Get region from state
-region = self.state.get_region(region_id)
-
-# Get all pinned/unpinned regions
-pinned = self.state.get_pinned_regions()
-unpinned = self.state.get_unpinned_regions()
-
-# Get faces that need re-analysis
-available_faces = self.state.get_unpinned_faces()
-```
+---
 
 ## Important Notes
 
-### Do NOT:
-- **❌ CONVERT SubD TO MESH IN THE DATA PIPELINE** - This is the #1 architectural violation
-- Modify region objects directly - always go through `ApplicationState`
-- Use absolute file paths in code - paths should be relative to project root
-- Commit test data or generated geometry files
-- Include the `venv/` directory or `__pycache__/` in version control
-- Store mesh representations as primary geometry - only for display
+### DO NOT:
+- ❌ **Convert SubD to mesh in data pipeline** - #1 violation
+- ❌ Use absolute paths - always relative
+- ❌ Modify state directly - use ApplicationState
+- ❌ Port from Archive - different tech stack
+- ❌ Use `ceramic_mold_analyzer/` path prefix
 
 ### DO:
-- ✅ Maintain exact SubD representation using `rhino3dm`
-- ✅ Define regions in parametric space (face_id, u, v)
-- ✅ Evaluate limit surface on-demand for analysis
-- ✅ Generate display meshes separately for viewport only
-- ✅ Keep approximation confined to final fabrication export
+- ✅ Transfer control cage (lossless)
+- ✅ Define regions parametrically
+- ✅ Evaluate limit surface on-demand
+- ✅ Generate display meshes separately
+- ✅ Use `app/` for Python modules
+- ✅ Keep approximation to final export only
 
-### Architecture Decisions Made:
-- **Lossless until fabrication** - Mathematical exactness preserved throughout pipeline
-- **PyQt6 over Tkinter** - More professional, better 3D integration via VTK
-- **VTK for 3D** (when implemented) - Industry standard, powerful, well-documented
-- **rhino3dm for SubD** - CRITICAL dependency for exact geometry representation
-- **HTTP over WebSockets** - Simpler, sufficient for polling-based updates
-- **Signal/slot pattern** - Clean event handling, decoupled components
-- **Centralized state** - Single source of truth, automatic undo/redo
-- **Parametric regions** - Defined in SubD parameter space, not mesh faces
+### Architecture Decisions:
+- **Lossless until fabrication** - Core principle
+- **Hybrid C++/Python** - Required for performance
+- **OpenSubdiv + OpenCASCADE** - Exact geometry
+- **PyQt6 + VTK** - Professional UI/3D
+- **pybind11** - Zero-copy C++↔Python
+- **HTTP bridge** - Simple, sufficient
+- **Parametric regions** - Mathematical truth
 
-The codebase is well-structured for incremental development, with clear separation between mathematical analysis, UI, and Rhino communication layers. The current implementation provides a solid foundation for adding real mathematical analysis engines and 3D visualization.
+---
 
-### Recent Updates (October 2025)
+## Archive Reference
 
-#### Week 2 - Multi-Viewport System ✅ COMPLETE
-- **Implemented ViewportLayoutManager** (`app/ui/viewport_layout.py`) - Complete multi-viewport system
-- **Four configurable layouts** - Single, Two Horizontal, Two Vertical, Four Grid (matching Rhino's standard layouts)
-- **Independent cameras per viewport** - Each viewport maintains its own camera position and settings
-- **Standard view presets** - Top, Front, Right, Back, Left, Bottom, Perspective, and Isometric views
-- **Active viewport tracking** - Visual indicators (green border) show which viewport is active
-- **Menu integration** - View → Viewport Layout submenu with keyboard shortcuts (Alt+1/2/3/4)
-- **Updated main.py** - Replaced single viewport with ViewportLayoutManager, updated all test geometry methods
-- **Professional CAD-like interface** - Now matches standard 3D modeling applications
+Legacy Grasshopper implementation in `.Archive/251013/` is **REFERENCE ONLY**:
 
-#### Week 3 - HTTP Bridge ✅ COMPLETE
-- **Python 3 Support** - Rhino 8 supports Python 3 natively (no IronPython issues)
-- **Full Geometry Transfer** - Successfully transferring mesh representation of SubD from Rhino
-- **Fixed Twitching Issue** - Resolved geometry re-rendering loop with smart change detection
-- **Optimizations Applied**:
-  - Added proper hash comparison to prevent duplicate updates
-  - Viewport checks if geometry actually changed before re-rendering
-  - Reduced polling frequency from 1s to 2s to minimize overhead
-  - Initial geometry fetch doesn't trigger duplicate update
-- **Current file**: `rhino/grasshopper_server_control.py` provides clean start/stop control
+**Study for concepts**:
+- Mathematical decomposition approaches
+- Resonance scoring methods
+- Multi-lens analysis patterns
 
-#### Week 4 - Edit Mode System ✅ COMPLETE
-- **Edit Mode Infrastructure** - Solid/Panel/Edge/Vertex selection modes implemented
-- **EditModeManager** - Centralized state tracking for selections and mode changes
-- **Toolbar Integration** - Professional mode selector with visual indicators (S/P/E/V buttons)
-- **VTK Picking System** - Face, edge, and vertex picking with visual highlighting
-- **Architecture Ready for OpenSubdiv** - Designed with future Tier 1 hybrid architecture in mind
-- **Files Created**:
-  - `app/state/edit_mode.py` - Mode and selection state management
-  - `app/ui/picker.py` - VTK-based element picking
-  - `app/ui/edit_mode_toolbar.py` - Mode selector UI
-- **Next Phase**: Will integrate with OpenCASCADE + OpenSubdiv for exact limit surface editing
+**Do NOT**:
+- Copy or import code
+- Use RhinoCommon API
+- Port directly to standalone
 
-#### Mouse Control Fixes ✅ FULLY RESOLVED (November 2025)
-- **Critical UX Issue**: LEFT click was rotating camera instead of selecting elements
-- **Root Cause**: Inheriting from `vtkInteractorStyleTrackballCamera` had deep internal state that couldn't be fully overridden
-- **Complete Solution**: Created `app/ui/rhino_interactor.py` inheriting from base `vtkInteractorStyle`
-  - Full manual implementation of Rotate, Pan, and Dolly camera methods
-  - Complete control over event handling - no hidden parent behaviors
-  - LEFT click/drag does NOTHING to camera (reserved for selection)
-- **Final Control Mapping**:
-  - LEFT click: Selection/picking only (no camera movement!)
-  - RIGHT drag or MIDDLE drag: Rotate camera
-  - Shift + RIGHT: Pan camera
-  - Mouse wheel: Zoom
-- **Files**: `app/ui/rhino_interactor.py`, `MOUSE_CONTROLS_SOLUTION.md`
-- **Result**: Selection system now fully functional, matches Rhino/CAD standards
+**Instead**:
+- Implement fresh using numpy/scipy/VTK
+- Query C++ limit surface (not mesh)
+- Build on OpenSubdiv foundation
+
+---
+
+**Sprint Status**: Ready to launch Day 1 after completing Day 0 preparation (OpenSubdiv installation).
+
+**Next Step**: Complete Day 0 checklist, then `/launch-day1-morning`
