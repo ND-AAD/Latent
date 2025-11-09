@@ -3,6 +3,7 @@
 #include <pybind11/numpy.h>
 #include "../geometry/types.h"
 #include "../geometry/subd_evaluator.h"
+#include "../analysis/curvature_analyzer.h"
 
 namespace py = pybind11;
 using namespace latent;
@@ -273,4 +274,92 @@ PYBIND11_MODULE(cpp_core, m) {
              "Returns:\n"
              "    tuple: (tangent_u, tangent_v, normal) - normalized Point3D vectors",
              py::arg("face_index"), py::arg("u"), py::arg("v"));
+
+    // ============================================================
+    // CurvatureResult Binding (Day 4, Agent 28)
+    // ============================================================
+    py::class_<CurvatureResult>(m, "CurvatureResult",
+                                "Result of curvature analysis at a point")
+        .def(py::init<>(), "Default constructor")
+
+        // Principal curvatures
+        .def_readwrite("kappa1", &CurvatureResult::kappa1,
+                      "Maximum principal curvature")
+        .def_readwrite("kappa2", &CurvatureResult::kappa2,
+                      "Minimum principal curvature")
+
+        // Principal directions
+        .def_readwrite("dir1", &CurvatureResult::dir1,
+                      "Direction of maximum curvature")
+        .def_readwrite("dir2", &CurvatureResult::dir2,
+                      "Direction of minimum curvature")
+
+        // Derived curvatures
+        .def_readwrite("gaussian_curvature", &CurvatureResult::gaussian_curvature,
+                      "Gaussian curvature (K = kappa1 * kappa2)")
+        .def_readwrite("mean_curvature", &CurvatureResult::mean_curvature,
+                      "Mean curvature (H = (kappa1 + kappa2) / 2)")
+        .def_readwrite("abs_mean_curvature", &CurvatureResult::abs_mean_curvature,
+                      "Absolute mean curvature |H|")
+        .def_readwrite("rms_curvature", &CurvatureResult::rms_curvature,
+                      "RMS curvature sqrt((kappa1^2 + kappa2^2) / 2)")
+
+        // Fundamental forms
+        .def_readwrite("E", &CurvatureResult::E, "First fundamental form E")
+        .def_readwrite("F", &CurvatureResult::F, "First fundamental form F")
+        .def_readwrite("G", &CurvatureResult::G, "First fundamental form G")
+        .def_readwrite("L", &CurvatureResult::L, "Second fundamental form L")
+        .def_readwrite("M", &CurvatureResult::M, "Second fundamental form M")
+        .def_readwrite("N", &CurvatureResult::N, "Second fundamental form N")
+
+        // Surface normal
+        .def_readwrite("normal", &CurvatureResult::normal, "Surface unit normal")
+
+        .def("__repr__", [](const CurvatureResult& r) {
+            return "CurvatureResult(K=" + std::to_string(r.gaussian_curvature) +
+                   ", H=" + std::to_string(r.mean_curvature) +
+                   ", k1=" + std::to_string(r.kappa1) +
+                   ", k2=" + std::to_string(r.kappa2) + ")";
+        });
+
+    // ============================================================
+    // CurvatureAnalyzer Binding (Day 4, Agent 28)
+    // ============================================================
+    py::class_<CurvatureAnalyzer>(m, "CurvatureAnalyzer",
+                                  "Analyzes curvature properties of subdivision surfaces")
+        .def(py::init<>(), "Default constructor")
+
+        .def("compute_curvature", &CurvatureAnalyzer::compute_curvature,
+             "Compute all curvature quantities at a point\n\n"
+             "Uses exact limit surface evaluation with second derivatives to compute:\n"
+             "- First and second fundamental forms\n"
+             "- Shape operator and eigendecomposition\n"
+             "- Principal curvatures and directions\n"
+             "- Gaussian and mean curvatures\n\n"
+             "Args:\n"
+             "    evaluator: SubDEvaluator (must be initialized)\n"
+             "    face_index: Control face index\n"
+             "    u: Parametric coordinate (0-1)\n"
+             "    v: Parametric coordinate (0-1)\n\n"
+             "Returns:\n"
+             "    CurvatureResult: All curvature data at the point",
+             py::arg("evaluator"),
+             py::arg("face_index"),
+             py::arg("u"),
+             py::arg("v"))
+
+        .def("batch_compute_curvature", &CurvatureAnalyzer::batch_compute_curvature,
+             "Batch compute curvature at multiple points\n\n"
+             "More efficient than individual calls for large numbers of points.\n\n"
+             "Args:\n"
+             "    evaluator: SubDEvaluator (must be initialized)\n"
+             "    face_indices: List of face indices\n"
+             "    params_u: List of u parameters\n"
+             "    params_v: List of v parameters\n\n"
+             "Returns:\n"
+             "    List[CurvatureResult]: Curvature data for each point",
+             py::arg("evaluator"),
+             py::arg("face_indices"),
+             py::arg("params_u"),
+             py::arg("params_v"));
 }
