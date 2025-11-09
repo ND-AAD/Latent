@@ -29,12 +29,7 @@ from app import vtk_bridge as vtk
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from app.geometry.subd_display import (
-    SubDDisplayModel,
-    create_vtk_subd_actor,
-    create_test_subd_sphere,
-    create_test_subd_torus
-)
+from app.geometry.subd_display import SubDDisplayManager
 
 
 class Viewport3D(QWidget):
@@ -75,8 +70,8 @@ class Viewport3D(QWidget):
         self.selected_edges = set()
         self.selected_vertices = set()
 
-        # SubD display model
-        self.subd_model = SubDDisplayModel()
+        # SubD display manager
+        self.subd_display = SubDDisplayManager()
         self.subd_actors = []
 
         # Viewport info

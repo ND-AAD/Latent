@@ -1,16 +1,19 @@
 """Convert C++ tessellation results to VTK actors for display."""
 
+from __future__ import annotations
 import vtk
 import numpy as np
-import cpp_core
-from typing import Tuple
+from typing import Tuple, TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import cpp_core
 
 
 class SubDDisplayManager:
     """Manage VTK visualization of SubD geometry."""
 
     @staticmethod
-    def create_mesh_actor(result: cpp_core.TessellationResult,
+    def create_mesh_actor(result: Any,  # cpp_core.TessellationResult
                          color: Tuple[float, float, float] = (0.8, 0.8, 0.8),
                          show_edges: bool = False) -> vtk.vtkActor:
         """Create VTK actor from tessellation result.
@@ -71,7 +74,7 @@ class SubDDisplayManager:
         return actor
 
     @staticmethod
-    def create_control_cage_actor(cage: cpp_core.SubDControlCage,
+    def create_control_cage_actor(cage: Any,  # cpp_core.SubDControlCage
                                   color: Tuple[float, float, float] = (1.0, 0.0, 0.0),
                                   point_size: float = 5.0) -> vtk.vtkActor:
         """Create VTK actor for control cage wireframe.
@@ -120,7 +123,7 @@ class SubDDisplayManager:
         return actor
 
     @staticmethod
-    def compute_bounding_box(result: cpp_core.TessellationResult) -> Tuple[np.ndarray, np.ndarray]:
+    def compute_bounding_box(result: Any) -> Tuple[np.ndarray, np.ndarray]:  # cpp_core.TessellationResult
         """Compute axis-aligned bounding box.
 
         Returns:
