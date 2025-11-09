@@ -36,12 +36,19 @@ class ConstraintPanel(QWidget):
         # Title
         title = QLabel("Constraint Validation")
         title.setStyleSheet("font-weight: bold; font-size: 12px;")
+        title.setToolTip("Shows manufacturing and physical constraints for mold generation")
         layout.addWidget(title)
 
         # Tree widget
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Description", "Severity"])
         self.tree.itemClicked.connect(self._on_item_clicked)
+        self.tree.setToolTip(
+            "Constraint violations:\n"
+            "• Red (Errors): Must fix before mold generation\n"
+            "• Yellow (Warnings): Manufacturing challenges\n"
+            "• Blue (Features): Mathematical tensions (aesthetic features)"
+        )
         layout.addWidget(self.tree)
 
         # Set column widths
