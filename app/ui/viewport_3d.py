@@ -935,33 +935,12 @@ class Viewport3D(QWidget):
         if not self.picker:
             return
 
-        # Perform the pick
+        # Perform the pick (picker handles toggle logic internally)
         vertex_id = self.picker.pick(x, y, add_to_selection)
 
-        if vertex_id is not None and vertex_id >= 0:
-            # Update selection set
-            if add_to_selection:
-                # Toggle vertex in selection
-                if vertex_id in self.selected_vertices:
-                    self.selected_vertices.remove(vertex_id)
-                    print(f"   ➖ Removed vertex {vertex_id} from selection (now {len(self.selected_vertices)} selected)")
-                else:
-                    self.selected_vertices.add(vertex_id)
-                    print(f"   ➕ Added vertex {vertex_id} to selection (now {len(self.selected_vertices)} selected)")
-            else:
-                # Replace selection
-                self.selected_vertices = {vertex_id}
-                print(f"   🔄 New selection: vertex {vertex_id}")
-
-            # Update highlight to show all selected vertices
-            if self.highlight_manager and self.current_polydata:
-                self.highlight_manager.highlight_vertices(
-                    self.current_polydata,
-                    list(self.selected_vertices),
-                    color=(1.0, 1.0, 0.0)  # Yellow (matches face/edge selection)
-                )
-                self.highlight_manager.update_display()
-                print(f"   ✅ Highlighting {len(self.selected_vertices)} vertices")
+        # Get updated selection from picker (picker already handled toggle)
+        self.selected_vertices = set(self.picker.get_selected_vertices())
+        print(f"   🔄 Selection updated: {len(self.selected_vertices)} vertices selected")
 
     def _on_face_picked(self, face_id):
         """Handle face selection (legacy signal handler - not used anymore)"""

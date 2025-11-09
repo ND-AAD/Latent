@@ -90,7 +90,7 @@ class SubDVertexPicker(QObject):
             bounds[3] - bounds[2],  # Y extent
             bounds[5] - bounds[4]   # Z extent
         )
-        self.sphere_radius = model_size * 0.015  # 1.5% of model size
+        self.sphere_radius = model_size * 0.025  # 2.5% of model size (larger for easier selection)
         print(f"   Adaptive sphere radius: {self.sphere_radius:.4f}")
         
         # Store vertex positions
@@ -190,8 +190,8 @@ class SubDVertexPicker(QObject):
         print(f"   Closest vertex: {closest_vertex_id} at distance {closest_distance:.4f}")
         
         # Check if within tolerance
-        # Tolerance is adaptive based on sphere radius
-        effective_tolerance = self.sphere_radius * 3.0
+        # Tolerance is adaptive based on sphere radius (5x for easier picking)
+        effective_tolerance = self.sphere_radius * 5.0
         
         if closest_distance > effective_tolerance:
             print(f"   ❌ No vertex within tolerance ({effective_tolerance:.4f})")
