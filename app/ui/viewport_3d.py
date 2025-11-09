@@ -942,6 +942,16 @@ class Viewport3D(QWidget):
         self.selected_vertices = set(self.picker.get_selected_vertices())
         print(f"   🔄 Selection updated: {len(self.selected_vertices)} vertices selected")
 
+        # Update visual highlighting
+        if self.highlight_manager and self.current_polydata:
+            self.highlight_manager.highlight_vertices(
+                self.current_polydata,
+                list(self.selected_vertices),
+                color=(1.0, 1.0, 0.0)  # Yellow
+            )
+            self.highlight_manager.update_display()
+            print(f"   ✅ Highlighting {len(self.selected_vertices)} vertices")
+
     def _on_face_picked(self, face_id):
         """Handle face selection (legacy signal handler - not used anymore)"""
         print(f"🎨 _on_face_picked() called with face_id={face_id}")
