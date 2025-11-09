@@ -26,8 +26,55 @@ from app.ui.constraint_panel import ConstraintPanel
 from app.ui.edit_mode_toolbar import EditModeToolBar, EditModeWidget
 from app.bridge.rhino_bridge import RhinoBridge
 from app.bridge.geometry_receiver import GeometryReceiver
+from app.bridge.subd_fetcher import SubDFetcher
+from app.bridge.live_bridge import LiveBridge
+from app.geometry.subd_display import SubDDisplayManager
 from app.state.app_state import ApplicationState, ParametricRegion
 from app.state.edit_mode import EditMode
+import cpp_core
+
+
+class ConnectionStatusWidget(QWidget):
+    """Show connection status to Grasshopper server."""
+
+    def __init__(self, live_bridge):
+        super().__init__()
+        self.live_bridge = live_bridge
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(5, 2, 5, 2)
+
+        # Status indicator (colored dot)
+        self.status_label = QLabel("●")
+        self.status_label.setStyleSheet("font-size: 16px;")
+
+        # Status text
+        self.text_label = QLabel("Disconnected")
+
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.text_label)
+        layout.addStretch()
+
+        self.setLayout(layout)
+
+        # Update timer
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_status)
+        self.update_timer.start(500)  # Update UI every 500ms
+
+    def update_status(self):
+        """Update status display."""
+        status = self.live_bridge.get_connection_status()
+
+        if status['connected'] and status['active']:
+            self.status_label.setStyleSheet("color: green; font-size: 16px;")
+            self.text_label.setText("Live sync active")
+        elif status['connected']:
+            self.status_label.setStyleSheet("color: orange; font-size: 16px;")
+            self.text_label.setText("Connected (manual)")
+        else:
+            self.status_label.setStyleSheet("color: red; font-size: 16px;")
+            self.text_label.setText("Disconnected")
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +89,17 @@ class MainWindow(QMainWindow):
         # Initialize state and bridge
         self.state = ApplicationState()
         self.rhino_bridge = RhinoBridge()
+
+        # Add SubD components (C++ integration)
+        self.subd_fetcher = SubDFetcher()
+        self.subd_evaluator = cpp_core.SubDEvaluator()
+        self.current_cage = None
+
+        # Create live bridge (before UI init so ConnectionStatusWidget can use it)
+        self.live_bridge = LiveBridge(
+            fetcher=self.subd_fetcher,
+            on_geometry_changed=self.on_geometry_updated
+        )
 
         # Initialize geometry receiver (listens for pushes from Grasshopper)
         # Use port 8800 to avoid conflict with macOS ControlCenter (AirPlay on 5000)
@@ -99,10 +157,14 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
-        # Connection indicator
+        # Connection status widget (LiveBridge monitoring)
+        self.status_widget = ConnectionStatusWidget(self.live_bridge)
+        self.status_bar.addPermanentWidget(self.status_widget)
+
+        # Keep old connection_indicator for compatibility with old code
         self.connection_indicator = QLabel("● Disconnected")
         self.connection_indicator.setStyleSheet("color: #FF3B30;")
-        self.status_bar.addPermanentWidget(self.connection_indicator)
+        # Don't add to status bar, just keep reference
 
         self.status_bar.showMessage("Ready. Connect to Rhino to begin.")
 
@@ -112,15 +174,42 @@ class MainWindow(QMainWindow):
     def create_menus(self):
         """Create application menus"""
         menubar = self.menuBar()
-        
+
         # File menu
         file_menu = menubar.addMenu("File")
-        
+
+        # Load from Rhino (C++ SubD pipeline)
+        load_rhino = QAction("Load from &Rhino", self)
+        load_rhino.setShortcut("Ctrl+R")
+        load_rhino.triggered.connect(self.load_from_rhino)
+        file_menu.addAction(load_rhino)
+
+        # Start live sync
+        start_sync = QAction("Start &Live Sync", self)
+        start_sync.setShortcut("Ctrl+L")
+        start_sync.triggered.connect(self.start_live_sync)
+        file_menu.addAction(start_sync)
+
+        # Stop live sync
+        stop_sync = QAction("Stop Live Sync", self)
+        stop_sync.triggered.connect(self.stop_live_sync)
+        file_menu.addAction(stop_sync)
+
+        file_menu.addSeparator()
+
+        # Force refresh
+        refresh = QAction("&Refresh", self)
+        refresh.setShortcut("F5")
+        refresh.triggered.connect(self.force_refresh)
+        file_menu.addAction(refresh)
+
+        file_menu.addSeparator()
+
         connect_action = QAction("Connect to Rhino", self)
         connect_action.setShortcut("Ctrl+O")
         connect_action.triggered.connect(self.connect_to_rhino)
         file_menu.addAction(connect_action)
-        
+
         file_menu.addSeparator()
         
         save_action = QAction("Save Session", self)
@@ -371,7 +460,113 @@ class MainWindow(QMainWindow):
                 "The connection maintains EXACT SubD representation\n"
                 "(Lossless Until Fabrication principle)"
             )
-    
+
+    def load_from_rhino(self):
+        """Load SubD geometry from Grasshopper server."""
+        # Check server availability
+        if not self.subd_fetcher.is_server_available():
+            print("❌ Grasshopper server not available on localhost:8888")
+            print("   Start server in Grasshopper first")
+            self.log_debug("❌ Grasshopper server not available on localhost:8888")
+            self.log_debug("   Start server in Grasshopper first (Agent 6)")
+            return
+
+        # Fetch control cage
+        cage = self.subd_fetcher.fetch_control_cage()
+        if cage is None:
+            print("❌ Failed to fetch geometry from Rhino")
+            self.log_debug("❌ Failed to fetch geometry from Rhino")
+            return
+
+        self.current_cage = cage
+
+        # Initialize evaluator
+        self.subd_evaluator.initialize(cage)
+
+        # Tessellate for display
+        print(f"Tessellating {cage.vertex_count()} control vertices...")
+        self.log_debug(f"🔄 Tessellating {cage.vertex_count()} control vertices...")
+        result = self.subd_evaluator.tessellate(subdivision_level=3)
+
+        print(f"✅ Generated {result.vertex_count()} vertices, "
+              f"{result.triangle_count()} triangles")
+        self.log_debug(f"✅ Generated {result.vertex_count()} vertices, "
+                      f"{result.triangle_count()} triangles")
+
+        # Display in viewport
+        self.display_tessellation(result, cage)
+
+    def display_tessellation(self, result, cage):
+        """Display tessellated SubD in viewport."""
+        # Get first viewport
+        viewport = self.viewport_layout.viewports[0]
+
+        # Clear existing geometry
+        viewport.renderer.RemoveAllViewProps()
+
+        # Create mesh actor
+        mesh_actor = SubDDisplayManager.create_mesh_actor(
+            result,
+            color=(0.7, 0.8, 0.9),
+            show_edges=True
+        )
+        viewport.renderer.AddActor(mesh_actor)
+
+        # Create control cage actor (optional)
+        # cage_actor = SubDDisplayManager.create_control_cage_actor(
+        #     cage,
+        #     color=(1.0, 0.0, 0.0)
+        # )
+        # viewport.renderer.AddActor(cage_actor)
+
+        # Reset camera to fit
+        viewport.renderer.ResetCamera()
+
+        # Refresh
+        viewport.render_window.Render()
+
+        print("✅ Geometry displayed in viewport")
+        self.log_debug("✅ Geometry displayed in viewport")
+
+    def start_live_sync(self):
+        """Start live synchronization with Grasshopper."""
+        if self.live_bridge.start():
+            self.log_debug("✅ Live sync enabled")
+        else:
+            self.log_debug("❌ Failed to start live sync")
+
+    def stop_live_sync(self):
+        """Stop live synchronization."""
+        self.live_bridge.stop()
+        self.log_debug("🛑 Live sync stopped")
+
+    def force_refresh(self):
+        """Force geometry refresh."""
+        self.log_debug("🔄 Forcing refresh...")
+        self.live_bridge.force_update()
+
+    def on_geometry_updated(self, cage):
+        """Called when geometry changes in Grasshopper.
+
+        Args:
+            cage: Updated SubD control cage
+        """
+        self.log_debug(f"📥 Received updated geometry: "
+                      f"{cage.vertex_count()} vertices, {cage.face_count()} faces")
+
+        self.current_cage = cage
+
+        # Re-initialize evaluator
+        self.subd_evaluator.initialize(cage)
+
+        # Re-tessellate
+        result = self.subd_evaluator.tessellate(subdivision_level=3)
+
+        # Update display
+        self.display_tessellation(result, cage)
+
+        self.log_debug("✅ Display updated")
+
     def show_test_cube(self):
         """Show test cube in all viewports"""
         for viewport in self.viewport_layout.viewports:
@@ -661,6 +856,10 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close"""
+        # Stop live bridge
+        if hasattr(self, 'live_bridge'):
+            self.live_bridge.stop()
+
         # Stop geometry receiver
         if hasattr(self, 'geometry_receiver'):
             self.geometry_receiver.stop()

@@ -97,7 +97,11 @@ add_library(cpp_core_static STATIC
 )
 
 # Set output name to cpp_core (without _static suffix)
-set_target_properties(cpp_core_static PROPERTIES OUTPUT_NAME cpp_core)
+# Enable Position Independent Code for linking into shared library
+set_target_properties(cpp_core_static PROPERTIES
+    OUTPUT_NAME cpp_core
+    POSITION_INDEPENDENT_CODE ON
+)
 
 target_include_directories(cpp_core_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
