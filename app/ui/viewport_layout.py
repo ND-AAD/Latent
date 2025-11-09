@@ -359,6 +359,12 @@ class ViewportLayoutManager(QWidget):
             if hasattr(viewport, 'view_type'):
                 self._setup_viewport_camera(viewport, viewport.view_type)
 
+    def clear_selection(self):
+        """Clear selection in all viewports"""
+        for viewport in self.viewports:
+            if hasattr(viewport, 'clear_selection'):
+                viewport.clear_selection()
+
     def _on_view_change_requested(self, viewport: Viewport3D, view_name: str):
         """Handle view change request from viewport context menu"""
         # Map string to ViewType enum

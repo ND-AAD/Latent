@@ -861,6 +861,12 @@ class Viewport3D(QWidget):
 
         self.render_window.Render()
 
+    def clear_selection(self):
+        """Clear selection in current picker"""
+        if self.picker and hasattr(self.picker, 'clear_selection'):
+            self.picker.clear_selection()
+            self.log_debug("✅ Viewport selection cleared")
+
     def _handle_face_pick(self, x: int, y: int, add_to_selection: bool = False):
         """
         Handle face picking with multi-select support
@@ -911,33 +917,12 @@ class Viewport3D(QWidget):
         if not self.picker:
             return
 
-        # Perform the pick
+        # Perform the pick (picker handles toggle logic internally)
         edge_id = self.picker.pick(x, y, add_to_selection)
 
-        if edge_id is not None and edge_id >= 0:
-            # Update selection set
-            if add_to_selection:
-                # Toggle edge in selection
-                if edge_id in self.selected_edges:
-                    self.selected_edges.remove(edge_id)
-                    print(f"   ➖ Removed edge {edge_id} from selection (now {len(self.selected_edges)} selected)")
-                else:
-                    self.selected_edges.add(edge_id)
-                    print(f"   ➕ Added edge {edge_id} to selection (now {len(self.selected_edges)} selected)")
-            else:
-                # Replace selection
-                self.selected_edges = {edge_id}
-                print(f"   🔄 New selection: edge {edge_id}")
-
-            # Update highlight to show all selected edges
-            if self.highlight_manager and self.current_polydata:
-                self.highlight_manager.highlight_edges(
-                    self.current_polydata,
-                    list(self.selected_edges),
-                    color=(1.0, 1.0, 0.0)  # Yellow (matches face selection)
-                )
-                self.highlight_manager.update_display()
-                print(f"   ✅ Highlighting {len(self.selected_edges)} edges")
+        # Get updated selection from picker (picker already handled toggle)
+        self.selected_edges = set(self.picker.get_selected_edges())
+        print(f"   🔄 Selection updated: {len(self.selected_edges)} edges selected")
 
     def _handle_vertex_pick(self, x: int, y: int, add_to_selection: bool = False):
         """

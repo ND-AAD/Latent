@@ -1079,6 +1079,8 @@ class MainWindow(QMainWindow):
     def clear_selection(self):
         """Clear current selection"""
         self.state.edit_mode_manager.clear_selection()
+        # Clear visual selection in viewports
+        self.viewport_layout.clear_selection()
         self.log_debug("🔄 Selection cleared")
 
     def select_all(self):
