@@ -9,7 +9,7 @@ echo "======================================================================"
 echo ""
 
 # Check C++ build exists
-if [ ! -f "cpp_core/build/cpp_core.so" ]; then
+if ! ls cpp_core/build/cpp_core*.so > /dev/null 2>&1; then
     echo "❌ C++ module not built. Run:"
     echo "   cd cpp_core/build && cmake .. && make"
     exit 1
@@ -39,7 +39,7 @@ echo ""
 # Run integration tests
 echo "Running integration tests..."
 echo "----------------------------------------------------------------------"
-python3 tests/test_day1_integration.py
+PYTHONPATH=cpp_core/build:$PYTHONPATH python3 tests/test_day1_integration.py
 echo ""
 
 # Summary
