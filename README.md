@@ -30,96 +30,130 @@ For translucent porcelain light fixtures, the mold seams become permanent visibl
 
 ## Current Status
 
-**Version**: 0.4.0 (Week 4 of 10 Complete - ~40% MVP)
-**Status**: ✅ Foundation Complete, Selection System Working
-**Next**: Week 5 - First Mathematical Lens (Differential Decomposition)
+**Version**: 0.5.0 - **Phase 0 Complete!** 🎉
+**Sprint**: 10-Day API Sprint (Days 1-2 Complete)
+**Status**: ✅ C++ Core + Desktop Foundation Ready
+**Next**: Day 3+ - Mathematical Lenses & Region Discovery
 
-### ✅ Working Features
+### ✅ Phase 0 Complete (Days 1-2)
 
-**Foundation (Week 1)**:
-- Professional PyQt6 desktop application
-- Centralized state management with undo/redo (100-item history)
-- Signal/slot architecture for reactive UI
+**C++ Geometry Kernel (Day 1)**:
+- OpenSubdiv 3.6.0 integration for exact limit surface evaluation
+- Stam eigenanalysis for mathematically exact SubD evaluation
+- Zero-copy pybind11 bindings with NumPy integration
+- Derivative computation (1st and 2nd order) for curvature analysis
+- Batch evaluation for high-performance sampling
+- CMake build system with multi-platform support
+- Comprehensive C++ and Python test suites
+
+**Desktop Application Foundation (Day 2)**:
+- Professional PyQt6 main window with dockable panels
+- Multi-viewport system (Single, 2H, 2V, 4-Grid layouts)
+- VTK 9.3.0 visualization with Rhino-compatible controls
+- Advanced SubD display with smooth shading and region coloring
+- Application state management with undo/redo (100-item history)
+- Parametric region data structures (face_id, u, v)
+- Edit mode system (Solid/Panel/Edge/Vertex)
 - Complete menu system with keyboard shortcuts
 
-**3D Visualization (Week 1)**:
-- VTK 9.3.0 integration with PyQt6
-- Rhino-compatible viewport controls (right-drag orbit, shift+right pan, wheel zoom)
-- SubD control net rendering
-- Test geometry visualization (cubes, spheres, tori)
-- Region coloring system (per-face color assignment)
-
-**Multi-Viewport System (Week 2)**:
-- Four layout modes: Single, Two Horizontal, Two Vertical, Four Grid
-- Independent cameras per viewport
-- Standard view presets (Top, Front, Right, Perspective, Isometric)
-- Active viewport tracking with visual indicators
-- Menu integration with keyboard shortcuts (Alt+1/2/3/4)
-
-**Rhino HTTP Bridge (Week 3)**:
-- Live bidirectional communication with Rhino/Grasshopper
-- Geometry transfer via HTTP (port 8800)
+**Rhino Bridge (Day 1)**:
+- HTTP server in Grasshopper (port 8888)
+- Control cage transfer (exact topology, not mesh!)
+- Live sync with change detection
 - Connection status monitoring
-- Automatic update detection (2-second polling)
-- Change detection to prevent duplicate updates
 
-**Edit Mode & Selection System (Week 4)**:
-- Four edit modes: Solid (view-only), Panel (face selection), Edge, Vertex
-- Complete VTK picking system for all element types
-- Multi-select with Shift+Click (add/remove from selection)
-- Unified yellow highlighting for visual feedback
-- Face, edge, and vertex selection all functional
+**Documentation (Day 2)**:
+- Complete API reference (C++ and Python)
+- Comprehensive build instructions (macOS/Linux)
+- Phase 0 completion summary
+- Performance benchmarks
 
-### 🚧 In Development
+**Test Coverage**:
+- 35 total tests, 100% pass rate
+- Integration tests: 2.4s execution (12x under budget)
+- C++ unit tests: exact evaluation validated
+- Python bindings: zero-copy arrays confirmed
 
-**Week 5 (Current)**: Differential Decomposition
-- Curvature-based region discovery
+### 🎯 Coming Next: Phase 1 (Days 3-5)
+
+**Day 3**: Region Management & Interactive Editing
+- Face/edge/vertex picking system
+- Region list UI with pin/unpin functionality
+- Region visualization with color-coded strength
+- Interactive boundary editing
+
+**Day 4**: Differential Lens (First Mathematical Lens!)
+- Curvature analysis engine (Gaussian, Mean, Principal)
 - Ridge/valley line extraction
-- First working mathematical lens
+- Differential decomposition algorithm
+- First mathematical regions discovered!
 
-**Week 6**: Iteration Management
-- Design snapshot system
-- Switch between alternative decompositions
-- Thumbnail generation
-
-**Week 7**: Constraint Validation
-- Physical constraint checking (undercuts, air traps, slip access)
-- Manufacturing warnings (draft angles, wall thickness)
-- Mathematical tension documentation
-
-**Week 8-10**: NURBS Generation & Polish
-- Draft angle application
-- NURBS surface fitting
-- Mold solid construction
-- Export to fabrication
+**Day 5**: Spectral Lens (Second Mathematical Lens)
+- Laplace-Beltrami operator
+- Eigenfunction computation
+- Nodal domain extraction
+- Multi-lens comparison workflow
 
 ---
 
 ## Installation
 
 ### Prerequisites
-- macOS 12+ (Monterey or later)
+
+**System Requirements**:
+- macOS 12+ or Linux (Ubuntu 20.04+, Debian 11+)
 - Python 3.11+
-- Rhino 8+ for Mac (for live geometry sync)
+- CMake 3.20+
+- OpenSubdiv 3.6.0+
+- Rhino 8+ for Mac/Windows (for live geometry sync)
 
-### Setup
-
-1. **Clone the repository:**
+**Quick Check**:
 ```bash
+python3 --version   # >= 3.11
+cmake --version     # >= 3.20
+pkg-config --modversion opensubdiv  # >= 3.6.0
+```
+
+### Quick Install
+
+```bash
+# 1. Clone repository
 git clone https://github.com/yourusername/latent.git
 cd latent
-```
 
-2. **Create virtual environment:**
-```bash
+# 2. Install system dependencies
+# macOS:
+brew install cmake opensubdiv
+
+# Ubuntu 22.04+:
+sudo apt-get install cmake libosd-dev pybind11-dev
+
+# 3. Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
+
+# 4. Install Python dependencies
+pip install -r requirements.txt
+
+# 5. Build C++ core
+cd cpp_core/build
+cmake ..
+make -j$(nproc)  # or make -j$(sysctl -n hw.ncpu) on macOS
+cd ../..
+
+# 6. Verify installation
+python3 -c "import sys; sys.path.insert(0, 'cpp_core/build'); import cpp_core; print('✅ Installation successful!')"
 ```
 
-3. **Install dependencies:**
-```bash
-pip install -r requirements.txt
-```
+### Detailed Installation
+
+For complete build instructions including:
+- Platform-specific dependencies
+- OpenSubdiv installation from source
+- Troubleshooting common issues
+- Development workflow
+
+See **[docs/BUILD_INSTRUCTIONS.md](docs/BUILD_INSTRUCTIONS.md)**
 
 ### Running Latent
 
@@ -128,17 +162,17 @@ pip install -r requirements.txt
 python3 launch.py
 ```
 
-**Or with one command:**
+**Or with activation:**
 ```bash
 source venv/bin/activate && python3 launch.py
 ```
 
-The application will open with the main window showing:
-- 3D viewport (left panel) with VTK rendering
-- Mathematical lens selector (Flow/Spectral/Curvature/Topological)
-- Discovered regions list with pin/unpin controls
-- Constraint validation panel
-- Generate/Send buttons for mold creation
+The application will open with:
+- Main window with 4 viewports (default layout)
+- Menu system (File, Edit, Analysis, View, Help)
+- Dockable panels (Regions, Analysis, Constraints)
+- Status bar with Rhino connection status
+- Test geometry menu for verification
 
 ---
 
@@ -202,62 +236,101 @@ The application will open with the main window showing:
 
 ### Technology Stack
 
-**Current (Pure Python - Weeks 1-7):**
-- Python 3.12 for all code
+**Hybrid C++/Python Architecture** (Phase 0 Complete):
+
+**C++ Geometry Kernel:**
+- OpenSubdiv 3.6.0 (exact limit surface evaluation via Stam eigenanalysis)
+- pybind11 2.11.0+ (zero-copy Python bindings)
+- CMake 3.20+ (build system)
+- Metal backend support (macOS GPU acceleration)
+
+**Python Application Layer:**
+- Python 3.11+ for all application code
 - PyQt6 6.9.1 (UI framework)
 - VTK 9.3.0 (3D visualization)
-- NumPy 1.26.2 / SciPy 1.11.4 (numerical computing)
-- rhino3dm 8.17.0 (exact SubD representation)
+- NumPy 2.0+ (array operations, zero-copy with C++)
+- Requests 2.32.0 (Rhino HTTP bridge)
 
-**Future (Hybrid - Week 8+ if needed):**
-- C++ geometry kernel (OpenCASCADE for NURBS)
-- OpenSubdiv (GPU-accelerated SubD evaluation)
-- pybind11 bindings
-- Metal backend for Apple Silicon optimization
+**Why Hybrid**: The v5.0 specification requires capabilities that pure Python cannot provide:
+- **Exact evaluation**: OpenSubdiv's Stam eigenanalysis for mathematically exact limit surfaces
+- **Performance**: 10-100x faster than pure Python for geometry operations
+- **Derivatives**: First and second derivative computation for curvature analysis
+- **Lossless representation**: No mesh approximation in the analysis pipeline
 
-**Decision Point**: Week 8 performance profiling will determine if hybrid architecture is needed. Staying pure Python while velocity and performance remain adequate.
+This is NOT an optimization - it's a **fundamental architectural requirement** for the lossless mathematical pipeline.
 
 ### Project Structure
 
 ```
 latent/
-├── main.py                     # Application entry point
-├── launch.py                   # Qt plugin auto-config launcher
-├── requirements.txt            # All dependencies
-├── CLAUDE.md                   # AI collaboration guide
-├── README.md                   # This file
+├── main.py                      (1200 lines) - Main window application
+├── launch.py                    (60 lines)   - Qt plugin auto-config launcher
+├── setup.py                     (156 lines)  - Python package build
+├── requirements.txt             (15 lines)   - Python dependencies
+├── CLAUDE.md                                 - AI collaboration guide
+├── README.md                                 - This file
 │
-├── app/                        # Application code
+├── app/                         (~4800 lines Python)
 │   ├── state/
-│   │   ├── app_state.py        # Centralized state management
-│   │   └── edit_mode.py        # Edit mode & selection tracking
-│   ├── bridge/
-│   │   └── rhino_bridge.py     # HTTP communication with Rhino
+│   │   ├── app_state.py         (600 lines)  - Centralized state management
+│   │   ├── parametric_region.py (87 lines)   - Region definition (face_id, u, v)
+│   │   └── edit_mode.py         (120 lines)  - Edit mode management
+│   │
+│   ├── ui/
+│   │   ├── viewport_base.py     (250 lines)  - Base viewport class
+│   │   ├── subd_viewport.py     (400 lines)  - SubD-specific viewport
+│   │   ├── viewport_layout.py   (500 lines)  - Multi-viewport manager
+│   │   ├── region_list_widget.py (350 lines) - Region sidebar
+│   │   ├── analysis_panel.py    (200 lines)  - Analysis controls
+│   │   ├── constraint_panel.py  (120 lines)  - Constraint panel
+│   │   └── ...                               - Additional UI components
+│   │
 │   ├── geometry/
-│   │   ├── subd_display.py     # SubD visualization helpers
-│   │   └── curvature.py        # Curvature computation
-│   ├── analysis/               # Mathematical decomposition engines
-│   │   └── differential_decomposition.py  # Curvature-based (Week 5)
-│   ├── constraints/            # Validation system (Week 7)
-│   └── ui/
-│       ├── viewport_3d.py      # VTK 3D viewport
-│       ├── viewport_layout.py  # Multi-viewport manager
-│       ├── region_list.py      # Region management UI
-│       ├── constraint_panel.py # Validation display
-│       ├── edit_mode_toolbar.py # Edit mode selector
-│       └── picker.py           # VTK picking system
+│   │   ├── subd_display.py      (350 lines)  - VTK mesh utilities
+│   │   ├── curvature.py         (150 lines)  - Curvature computation
+│   │   └── test_meshes.py       (200 lines)  - Test geometry
+│   │
+│   ├── bridge/
+│   │   ├── rhino_bridge.py      (200 lines)  - Base bridge class
+│   │   ├── subd_fetcher.py      (120 lines)  - Fetch control cage
+│   │   ├── live_bridge.py       (150 lines)  - Live sync manager
+│   │   └── geometry_receiver.py (80 lines)   - Parse geometry JSON
+│   │
+│   └── analysis/                             - Mathematical lenses (Day 4+)
+│       └── differential_decomposition.py     - Curvature-based (upcoming)
 │
-├── rhino/                      # Grasshopper components
-│   ├── grasshopper_server_control.py  # Main HTTP server
-│   └── grasshopper_manual_push.py     # Manual geometry push
+├── cpp_core/                    (~1000 lines C++)
+│   ├── CMakeLists.txt           (135 lines)  - Build configuration
+│   ├── BUILD.md                 (371 lines)  - Build documentation
+│   ├── INTEGRATION.md           (372 lines)  - Integration guide
+│   │
+│   ├── geometry/
+│   │   ├── types.h              (60 lines)   - Point3D, SubDControlCage, etc.
+│   │   ├── subd_evaluator.h     (176 lines)  - Evaluator interface
+│   │   └── subd_evaluator.cpp   (756 lines)  - OpenSubdiv integration
+│   │
+│   └── python_bindings/
+│       ├── bindings.cpp         (446 lines)  - pybind11 bindings
+│       └── test_bindings.py     (200 lines)  - Python binding tests
 │
-├── tests/                      # Unit tests (to be added)
+├── rhino/                                    - Grasshopper components
+│   └── grasshopper_http_server_control_cage.py  (GH component)
 │
-└── docs/                       # Documentation
-    ├── IMPLEMENTATION_ROADMAP.md
-    ├── PROJECT_STATUS.md
-    └── RHINO_BRIDGE_SETUP.md
+├── tests/                       (~820 lines)
+│   ├── README.md                (131 lines)  - Testing documentation
+│   ├── run_all_tests.sh         (48 lines)   - Test runner
+│   ├── test_day1_integration.py (320 lines)  - Integration tests
+│   └── test_*.py                (~300 lines)  - Various test suites
+│
+└── docs/
+    ├── PHASE_0_COMPLETE.md                   - Phase 0 summary
+    ├── API_REFERENCE.md                      - Complete API docs
+    ├── BUILD_INSTRUCTIONS.md                 - Build guide
+    ├── PROJECT_STATUS.md                     - Project status
+    └── RHINO_BRIDGE_SETUP.md                 - Bridge setup
 ```
+
+**Total**: ~8,700 lines of code (Phase 0 Complete)
 
 ---
 
@@ -289,17 +362,21 @@ Each lens reveals different aspects of the form's inherent mathematical structur
 
 ## Development Timeline
 
-**Weeks 1-4 (Complete)**: Foundation, Visualization, Multi-Viewport, HTTP Bridge, Edit Modes
-**Week 5 (Current)**: Differential Decomposition
-**Week 6**: Iteration Management
-**Week 7**: Constraint Validation
-**Week 8**: NURBS Generation
-**Week 9**: Additional Lenses
-**Week 10**: Polish & Testing
+**10-Day API Sprint** (Current Mode):
 
-**Target MVP**: 6 weeks remaining (Week 5 of 10)
+**Days 1-2 (Complete)** ✅: C++ Core + Desktop Foundation (Phase 0)
+**Days 3-5 (Next)**: Mathematical Lenses (Differential, Spectral)
+**Days 6-7**: Constraint Validation + Region Editing
+**Days 8-9**: NURBS Generation + Mold Export
+**Day 10**: Documentation + Polish
 
-See [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) for detailed week-by-week plan.
+**Sprint Budget**: $1000 API credits
+**Spent**: ~$10 (Days 1-2)
+**Remaining**: ~$990
+
+**Target**: MVP with two working mathematical lenses by Day 5
+
+See [docs/reference/api_sprint/](docs/reference/api_sprint/) for complete sprint documentation.
 
 ---
 
@@ -332,10 +409,18 @@ See [reference/SlipCasting_Ceramics_Technical_Reference.md](reference/SlipCastin
 
 ## Documentation
 
+**Phase 0 Documentation** (NEW):
+- [docs/PHASE_0_COMPLETE.md](docs/PHASE_0_COMPLETE.md) - Phase 0 summary, integration guide
+- [docs/API_REFERENCE.md](docs/API_REFERENCE.md) - Complete C++ and Python API documentation
+- [docs/BUILD_INSTRUCTIONS.md](docs/BUILD_INSTRUCTIONS.md) - Build guide (macOS/Linux)
+
+**Project Documentation**:
 - [CLAUDE.md](CLAUDE.md) - AI collaboration guidance, architectural principles
-- [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) - Current completion status, priorities
-- [docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md) - Week-by-week implementation plan
+- [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) - Current completion status
 - [docs/RHINO_BRIDGE_SETUP.md](docs/RHINO_BRIDGE_SETUP.md) - Rhino/Grasshopper connection setup
+
+**Sprint Documentation**:
+- [docs/reference/api_sprint/](docs/reference/api_sprint/) - 10-day sprint details, agent tasks
 
 ---
 
