@@ -98,11 +98,100 @@ endif()
 
 message(STATUS "Found pybind11: ${pybind11_VERSION}")
 
+# Try to find OpenCASCADE
+find_package(OpenCASCADE QUIET)
+
+if(OpenCASCADE_FOUND)
+    message(STATUS "Found OpenCASCADE via find_package")
+    message(STATUS "  Include: ${OpenCASCADE_INCLUDE_DIR}")
+    message(STATUS "  Library: ${OpenCASCADE_LIBRARY_DIR}")
+
+    # Set up include directories
+    set(OPENCASCADE_INCLUDE_DIRS ${OpenCASCADE_INCLUDE_DIR})
+
+    # Find all required OpenCASCADE libraries
+    set(OCCT_LIBS TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo
+                  TKTopAlgo TKPrim TKBO TKBool TKOffset TKHLR TKFillet)
+
+    foreach(LIB ${OCCT_LIBS})
+        find_library(OPENCASCADE_${LIB}_LIBRARY
+            NAMES ${LIB}
+            PATHS ${OpenCASCADE_LIBRARY_DIR} /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+            NO_DEFAULT_PATH
+        )
+        if(OPENCASCADE_${LIB}_LIBRARY)
+            list(APPEND OPENCASCADE_LIBRARIES ${OPENCASCADE_${LIB}_LIBRARY})
+        else()
+            message(STATUS "  Warning: ${LIB} not found")
+        endif()
+    endforeach()
+
+    message(STATUS "  Found ${OPENCASCADE_LIBRARIES}")
+else()
+    # Try manual search for OpenCASCADE
+    find_path(OPENCASCADE_INCLUDE_DIR
+        NAMES Standard_Version.hxx
+        PATHS /usr/include/opencascade /usr/local/include/opencascade
+    )
+
+    find_library(OPENCASCADE_TKernel_LIBRARY
+        NAMES TKernel
+        PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+    )
+
+    if(OPENCASCADE_INCLUDE_DIR AND OPENCASCADE_TKernel_LIBRARY)
+        message(STATUS "Found OpenCASCADE via manual search")
+        message(STATUS "  Include: ${OPENCASCADE_INCLUDE_DIR}")
+
+        set(OPENCASCADE_INCLUDE_DIRS ${OPENCASCADE_INCLUDE_DIR})
+
+        # Find all required OpenCASCADE libraries
+        set(OCCT_LIBS TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo
+                      TKTopAlgo TKPrim TKBO TKBool TKOffset TKHLR TKFillet)
+
+        foreach(LIB ${OCCT_LIBS})
+            find_library(OPENCASCADE_${LIB}_LIBRARY
+                NAMES ${LIB}
+                PATHS /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+            )
+            if(OPENCASCADE_${LIB}_LIBRARY)
+                list(APPEND OPENCASCADE_LIBRARIES ${OPENCASCADE_${LIB}_LIBRARY})
+            endif()
+        endforeach()
+
+        set(OpenCASCADE_FOUND TRUE)
+        message(STATUS "  Found ${OPENCASCADE_LIBRARIES} OpenCASCADE libraries")
+    else()
+        message(WARNING
+            "OpenCASCADE not found - NURBS mold generation features will be disabled!\n"
+            "Please install OpenCASCADE:\n"
+            "  - On macOS: brew install opencascade\n"
+            "  - On Linux: apt-get install libocct-*-dev\n"
+            "  - Or build from source"
+        )
+    endif()
+endif()
+
 # Core static library
 add_library(cpp_core_static STATIC
     geometry/subd_evaluator.cpp
     utils/mesh_mapping.cpp
+    analysis/curvature_analyzer.cpp
+    constraints/constraint_report.cpp
+    constraints/constraint_validator.cpp
+    constraints/draft_checker.cpp
+    constraints/undercut_detector.cpp
 )
+
+# Add NURBS generator sources if OpenCASCADE is available
+if(OpenCASCADE_FOUND)
+    target_sources(cpp_core_static PRIVATE
+        geometry/nurbs_fitting.cpp
+        geometry/draft_transform.cpp
+        geometry/mold_solid.cpp
+    )
+    target_compile_definitions(cpp_core_static PUBLIC HAVE_OPENCASCADE)
+endif()
 
 # Set output name to cpp_core (without _static suffix)
 # Enable Position Independent Code for linking into shared library
@@ -122,6 +211,12 @@ if(OpenSubdiv_FOUND)
 else()
     target_include_directories(cpp_core_static PUBLIC ${OPENSUBDIV_INCLUDE_DIRS})
     target_link_libraries(cpp_core_static PUBLIC ${OPENSUBDIV_LIBRARIES})
+endif()
+
+# Link OpenCASCADE if found
+if(OpenCASCADE_FOUND)
+    target_include_directories(cpp_core_static PUBLIC ${OPENCASCADE_INCLUDE_DIRS})
+    target_link_libraries(cpp_core_static PUBLIC ${OPENCASCADE_LIBRARIES})
 endif()
 
 # Enable Metal on macOS
@@ -151,6 +246,32 @@ target_link_libraries(test_subd_evaluator PRIVATE cpp_core_static)
 
 add_executable(test_limit_evaluation test_limit_evaluation.cpp)
 target_link_libraries(test_limit_evaluation PRIVATE cpp_core_static)
+
+add_executable(test_curvature test_curvature.cpp)
+target_link_libraries(test_curvature PRIVATE cpp_core_static)
+
+add_executable(test_validator_header test_validator_header.cpp)
+target_link_libraries(test_validator_header PRIVATE cpp_core_static)
+
+add_executable(test_draft_checker test_draft_checker.cpp)
+target_link_libraries(test_draft_checker PRIVATE cpp_core_static)
+
+# Add NURBS tests if OpenCASCADE is available
+if(OpenCASCADE_FOUND)
+    add_executable(test_nurbs_fitting test_nurbs_fitting.cpp)
+    target_link_libraries(test_nurbs_fitting PRIVATE cpp_core_static)
+
+    add_executable(test_mold_solid test_mold_solid.cpp)
+    target_link_libraries(test_mold_solid PRIVATE cpp_core_static)
+
+    add_executable(test_draft_transform test_draft_transform.cpp)
+    target_link_libraries(test_draft_transform PRIVATE cpp_core_static)
+
+    # Standalone draft test (no dependencies on other modules)
+    add_executable(test_draft_simple test_draft_simple.cpp)
+    target_link_libraries(test_draft_simple PRIVATE ${OPENCASCADE_LIBRARIES})
+    target_include_directories(test_draft_simple PRIVATE ${OPENCASCADE_INCLUDE_DIRS})
+endif()
 
 # Install targets
 install(TARGETS cpp_core_static ARCHIVE DESTINATION lib)

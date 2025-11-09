@@ -1,97 +1,121 @@
 """
-Constraint Panel - Shows validation status for selected region
+Constraint Panel - 3-tier display of constraint validation results
+
+Shows constraint violations in hierarchical tree:
+- ERROR (red): Physical impossibilities that must be fixed
+- WARNING (yellow): Manufacturing challenges that are negotiable
+- FEATURE (blue): Mathematical tensions that are aesthetic features
 """
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget,
+                             QTreeWidgetItem, QLabel)
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
+import cpp_core
 
 
 class ConstraintPanel(QWidget):
-    """Panel showing constraint validation status"""
-    
-    def __init__(self):
-        super().__init__()
-        self.init_ui()
-        self.current_region = None
-        
-    def init_ui(self):
-        """Initialize the UI"""
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        
+    """
+    Display constraint validation results in 3-tier hierarchy.
+
+    Red: Errors (must fix)
+    Yellow: Warnings (negotiable)
+    Blue: Features (mathematical tensions)
+    """
+
+    violation_selected = pyqtSignal(int)  # face_id
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Initialize the UI components."""
+        layout = QVBoxLayout(self)
+
         # Title
         title = QLabel("Constraint Validation")
         title.setStyleSheet("font-weight: bold; font-size: 12px;")
         layout.addWidget(title)
-        
-        # Status display
-        self.status_display = QTextEdit()
-        self.status_display.setReadOnly(True)
-        self.status_display.setMaximumHeight(200)
-        self.status_display.setStyleSheet(
-            "QTextEdit { font-family: monospace; font-size: 11px; }"
-        )
-        layout.addWidget(self.status_display)
-        
-        # Set default text
-        self.show_default()
-    
-    def show_default(self):
-        """Show default message when no region selected"""
-        self.status_display.setHtml(
-            "<p style='color: gray;'>Select a region to view constraints</p>"
-        )
-    
-    def show_constraints_for_region(self, region):
-        """Display constraints for a specific region"""
-        self.current_region = region
-        
-        # Build constraint report
-        html = []
-        
-        # Physical constraints (Tier 1)
-        html.append("<b>Physical Constraints:</b>")
-        if region.constraints_passed:
-            html.append("<span style='color: green;'>✅ All physical constraints passed</span>")
-            html.append("  • No undercuts detected")
-            html.append("  • Slip access verified")
-            html.append("  • No air traps found")
-        else:
-            html.append("<span style='color: red;'>❌ Physical constraint violations:</span>")
-            html.append("  • Undercut at boundary edge")
-            html.append("  • Fix required before generation")
-        
-        html.append("")
-        
-        # Manufacturing challenges (Tier 2)
-        html.append("<b>Manufacturing Challenges:</b>")
-        html.append("<span style='color: orange;'>⚠️ Warnings:</span>")
-        html.append("  • Draft angle: 0.8° (minimum 0.5°)")
-        html.append("  • Wall thickness: 3.2mm (optimal)")
-        html.append("  • Deep cavity may require longer casting")
-        
-        html.append("")
-        
-        # Mathematical tensions (Tier 3)
-        html.append("<b>Mathematical Tensions:</b>")
-        if region.unity_strength > 0.8:
-            html.append("<span style='color: blue;'>ℹ️ Strong mathematical coherence</span>")
-            html.append(f"  • Unity strength: {region.unity_strength:.2f}")
-            html.append(f"  • Natural boundary follows {region.unity_principle}")
-        else:
-            html.append("<span style='color: blue;'>ℹ️ Moderate coherence</span>")
-            html.append(f"  • Unity strength: {region.unity_strength:.2f}")
-            html.append("  • Consider alternative decomposition")
-        
-        # Display the report
-        self.status_display.setHtml("<br>".join(html))
-    
+
+        # Tree widget
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabels(["Description", "Severity"])
+        self.tree.itemClicked.connect(self._on_item_clicked)
+        layout.addWidget(self.tree)
+
+        # Set column widths
+        self.tree.setColumnWidth(0, 300)
+        self.tree.setColumnWidth(1, 80)
+
+    def display_report(self, report: cpp_core.ConstraintReport):
+        """
+        Display constraint violations from a ConstraintReport.
+
+        Args:
+            report: cpp_core.ConstraintReport containing violations
+        """
+        self.tree.clear()
+
+        # Create top-level categories
+        errors = QTreeWidgetItem(self.tree, ["Errors", ""])
+        errors.setForeground(0, QColor(200, 0, 0))
+        errors.setExpanded(True)
+
+        warnings = QTreeWidgetItem(self.tree, ["Warnings", ""])
+        warnings.setForeground(0, QColor(200, 150, 0))
+        warnings.setExpanded(True)
+
+        features = QTreeWidgetItem(self.tree, ["Features", ""])
+        features.setForeground(0, QColor(0, 100, 200))
+        features.setExpanded(True)
+
+        # Populate with violations
+        error_count = 0
+        warning_count = 0
+        feature_count = 0
+
+        for v in report.violations:
+            if v.level == cpp_core.ConstraintLevel.ERROR:
+                item = QTreeWidgetItem(errors, [v.description, f"{v.severity:.2f}"])
+                item.setData(0, Qt.ItemDataRole.UserRole, v.face_id)
+                item.setForeground(0, QColor(150, 0, 0))
+                item.setForeground(1, QColor(150, 0, 0))
+                error_count += 1
+
+            elif v.level == cpp_core.ConstraintLevel.WARNING:
+                item = QTreeWidgetItem(warnings, [v.description, f"{v.severity:.2f}"])
+                item.setData(0, Qt.ItemDataRole.UserRole, v.face_id)
+                item.setForeground(0, QColor(180, 120, 0))
+                item.setForeground(1, QColor(180, 120, 0))
+                warning_count += 1
+
+            elif v.level == cpp_core.ConstraintLevel.FEATURE:
+                item = QTreeWidgetItem(features, [v.description, f"{v.severity:.2f}"])
+                item.setData(0, Qt.ItemDataRole.UserRole, v.face_id)
+                item.setForeground(0, QColor(0, 80, 180))
+                item.setForeground(1, QColor(0, 80, 180))
+                feature_count += 1
+
+        # Update category labels with counts
+        errors.setText(0, f"Errors ({error_count})")
+        warnings.setText(0, f"Warnings ({warning_count})")
+        features.setText(0, f"Features ({feature_count})")
+
+        # Expand all categories
+        self.tree.expandAll()
+
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
+        """
+        Handle item clicks in the tree.
+
+        Emits violation_selected signal with face_id if the clicked item
+        is a violation (not a category header).
+        """
+        face_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if face_id is not None:
+            self.violation_selected.emit(face_id)
+
     def clear(self):
-        """Clear the constraint display"""
-        self.current_region = None
-        self.show_default()
-    
-    def update_validation(self, validation_result):
-        """Update display with new validation results"""
-        # This will be implemented when we have actual validation
-        pass
+        """Clear the constraint display."""
+        self.tree.clear()
