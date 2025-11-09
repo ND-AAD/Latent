@@ -104,6 +104,11 @@ class SubDEdgePicker(QObject):
         id_list = vtk.vtkIdList()
         edge_id = 0
 
+        # Create array to store edge IDs as cell data
+        edge_ids_array = vtk.vtkIdTypeArray()
+        edge_ids_array.SetName("EdgeIDs")
+        edge_ids_array.SetNumberOfTuples(num_lines)
+
         while lines.GetNextCell(id_list):
             if id_list.GetNumberOfIds() == 2:
                 v0 = id_list.GetId(0)
@@ -115,9 +120,17 @@ class SubDEdgePicker(QObject):
 
                 self.edges[edge_id] = edge_info
                 self.edge_map[edge_key] = edge_id
+
+                # Store edge ID in cell data
+                edge_ids_array.SetValue(edge_id, edge_id)
+
                 edge_id += 1
 
-        print(f"✅ Extracted {len(self.edges)} edges")
+        # Add edge IDs to polydata cell data
+        self.edge_polydata.GetCellData().AddArray(edge_ids_array)
+        self.edge_polydata.GetCellData().SetActiveScalars("EdgeIDs")
+
+        print(f"✅ Extracted {len(self.edges)} edges with IDs stored in cell data")
 
         # Create guide visualization (cyan tubes for all edges)
         self._create_guide_visualization()
@@ -209,11 +222,26 @@ class SubDEdgePicker(QObject):
         print(f"   Cell ID: {cell_id}, Actor match: {actor == self.guide_actor}")
 
         if cell_id >= 0 and actor == self.guide_actor:
-            # Map cell ID to edge ID (they should be the same)
-            edge_id = cell_id
+            # Get the edge ID from the picked cell's data
+            # The tube filter propagates cell data, so each tube cell has the original edge ID
+            mapper = actor.GetMapper()
+            if mapper:
+                input_data = mapper.GetInput()
+                cell_data = input_data.GetCellData()
+                edge_ids = cell_data.GetArray("EdgeIDs")
+
+                if edge_ids and cell_id < edge_ids.GetNumberOfTuples():
+                    edge_id = int(edge_ids.GetValue(cell_id))
+                    print(f"   📍 Mapped tube cell {cell_id} → edge ID {edge_id}")
+                else:
+                    print(f"   ⚠️  No EdgeIDs array in tube data")
+                    return None
+            else:
+                print(f"   ⚠️  No mapper for guide actor")
+                return None
 
             if edge_id not in self.edges:
-                print(f"   ⚠️  Cell ID {cell_id} not found in edge map")
+                print(f"   ⚠️  Edge ID {edge_id} not found in edge map")
                 return None
 
             edge_info = self.edges[edge_id]
