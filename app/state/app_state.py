@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 from app.state.parametric_region import ParametricRegion
+from app.state.iteration_manager import IterationManager
 
 
 @dataclass
@@ -29,6 +30,7 @@ class ApplicationState(QObject):
     history_changed = pyqtSignal()
     edit_mode_changed = pyqtSignal(object)  # EditMode
     selection_changed = pyqtSignal(object)  # Selection
+    iteration_changed = pyqtSignal(str)  # Iteration ID changed
 
     def __init__(self):
         super().__init__()
@@ -58,6 +60,12 @@ class ApplicationState(QObject):
 
         # Generated geometry
         self.mold_pieces = []
+
+        # Iteration management
+        self.iteration_manager = IterationManager()
+        self.iteration_manager.current_iteration_changed.connect(
+            lambda iter_id: self.iteration_changed.emit(iter_id)
+        )
         
     def set_subd_geometry(self, geometry):
         """Set the SubD geometry from Rhino"""
@@ -317,3 +325,72 @@ class ApplicationState(QObject):
         self.regions_updated.emit(self.regions)
         self.state_changed.emit()
         self.history_changed.emit()
+
+    def create_iteration_snapshot(self, name: str, thumbnail: Optional[bytes] = None) -> str:
+        """
+        Create a snapshot of the current design state as an iteration
+
+        Args:
+            name: Name for this iteration
+            thumbnail: Optional thumbnail image
+
+        Returns:
+            ID of created iteration
+        """
+        # Get control cage data if available
+        control_cage_data = None
+        if self.subd_geometry:
+            control_cage_data = {
+                'vertices': getattr(self.subd_geometry, 'vertices', []),
+                'faces': getattr(self.subd_geometry, 'faces', []),
+                'creases': getattr(self.subd_geometry, 'creases', []),
+            }
+
+        iteration = self.iteration_manager.create_iteration(
+            name=name,
+            regions=self.regions,
+            control_cage_data=control_cage_data,
+            thumbnail=thumbnail,
+            lens_used=self.current_lens,
+            parameters={},  # Could include lens-specific parameters
+        )
+
+        return iteration.id
+
+    def restore_from_iteration(self, iteration_id: str) -> bool:
+        """
+        Restore application state from a saved iteration
+
+        Args:
+            iteration_id: ID of iteration to restore
+
+        Returns:
+            True if successful
+        """
+        iteration = self.iteration_manager.get_iteration(iteration_id)
+        if not iteration:
+            return False
+
+        # Restore regions
+        self.regions = iteration.regions
+        self.regions_updated.emit(self.regions)
+
+        # Restore lens
+        if iteration.lens_used:
+            self.current_lens = iteration.lens_used
+
+        # Switch to this iteration
+        self.iteration_manager.set_current_iteration(iteration_id)
+
+        # Emit signals
+        self.state_changed.emit()
+        self.iteration_changed.emit(iteration_id)
+
+        # Add to history
+        self._add_history_item(
+            "restore_iteration",
+            {"iteration_id": iteration_id},
+            f"Restored iteration: {iteration.name}"
+        )
+
+        return True
