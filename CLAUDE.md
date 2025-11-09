@@ -123,48 +123,150 @@ python3 launch.py
 # - Test menu items and keyboard shortcuts
 ```
 
-## Architecture Overview
+## ⚡ 10-DAY API SPRINT (CURRENT MODE)
 
-### Current Strategy: Pure Python (Weeks 1-7), Pivot to Hybrid if Needed (Week 8+)
+**Status**: Ready to begin hybrid C++/Python implementation
+**Timeline**: 10 days with maximum parallelization
+**Strategy**: 6-8 agents working in parallel per day
+**Budget**: $1000 API credits ($242-412 expected, $588-758 reserve)
 
-**Technology Stack (Current)**:
-- Python 3.12 for all code (UI, state, geometry, analysis)
-- PyQt6 6.9.1 (UI framework)
-- VTK 9.3.0 (3D visualization)
-- NumPy 1.26.2 / SciPy 1.11.4 (numerical computing)
-- rhino3dm 8.17.0 (exact SubD representation - custom ARM64 build)
+### Why We Pivoted to C++/Python Hybrid NOW
 
-**Why Pure Python Now:**
-- ✅ Rapid development velocity (2-3 day feature cycles)
-- ✅ Adequate performance for test geometry (<5K control points)
-- ✅ All dependencies available in Python ecosystem
-- ✅ Focus on algorithms and UX, not build complexity
+**Critical Discovery**: `rhino3dm` Python library does NOT support SubD serialization (v5.0 spec requirement).
 
-**When to Pivot (Week 8+ Decision):**
+**The v5.0 specification explicitly requires**:
+- **OpenSubdiv** (C++) for exact SubD limit surface evaluation via Stam eigenanalysis
+- **OpenCASCADE** (C++) for NURBS operations and Boolean ops
+- **pybind11** for Python-C++ bindings
+- **Mathematical operations on exact limit surfaces, display via tessellation**
 
-Stay pure Python while:
-- UI development remains rapid
-- Working with test/prototype geometry
-- Multi-viewport rendering >30 FPS
-- Real-time operations feel responsive (<100ms)
+This is NOT an optimization - it's a **fundamental requirement** for the lossless architecture.
 
-Pivot to hybrid Python/C++ when measured performance shows:
-- 🚨 SubD operations become sluggish (>100ms)
-- 🚨 Multi-viewport <30 FPS on production models
-- 🚨 Spectral analysis >5 seconds
-- 🚨 Testing with actual light fixture designs (10K-50K control points) shows issues
+### Sprint Documentation
 
-**Hybrid Migration Path (If Needed):**
+**All sprint docs located in**: `docs/reference/api_sprint/`
+
+**Quick access**:
+- **QUICK_START.md** - Daily launch commands ⭐ **START HERE FOR DAILY WORK**
+- **MASTER_ORCHESTRATION.md** - Complete agent-by-agent details
+- **10_DAY_SPRINT_STRATEGY.md** - Full 10-day breakdown
+- **IMPLEMENTATION_ROADMAP.md** - Technical specification roadmap
+- **agent_tasks/day_XX/** - Individual agent task files (67 total)
+
+### Sprint Workflow for Claude Code Agents
+
+**When working as a sprint agent** (launched from task file):
+
+1. ✅ **Read the entire task file** - All context is provided
+2. ✅ **Work completely autonomously** - No need to ask for clarification
+3. ✅ **Implement ALL deliverables** - Files, tests, documentation
+4. ✅ **Test your work before completing** - Run all tests in task file
+5. ✅ **Provide integration notes** - How your work fits with others
+6. ✅ **Mark success criteria** - Confirm all checkboxes met
+
+**Critical**: Each agent MUST run provided tests and confirm passing before marking task complete.
+
+### Sprint Architecture (Hybrid C++/Python from Day 1)
+
+**Technology Stack (Production)**:
+- **C++ Core** (OpenSubdiv 3.6+, OpenCASCADE 7.x)
+  - Exact SubD limit surface evaluation (Stam 1998 eigenanalysis)
+  - NURBS operations and Boolean ops
+  - Mathematical analysis algorithms (curvature, spectral, etc.)
+  - 10-100x performance vs pure Python
+  - GPU acceleration via Metal backend (macOS)
+
+- **Python Layer** (PyQt6 6.9.1, VTK 9.3.0)
+  - UI framework and user interaction
+  - State management and undo/redo
+  - Rhino communication (HTTP bridge)
+  - Workflow orchestration
+  - File I/O
+
+- **pybind11 Bindings**
+  - Zero-copy numpy array sharing
+  - Seamless C++↔Python integration
+  - Expose C++ classes to Python
+
+### Agent Task Files and Testing Requirements
+
+**Every agent MUST complete these steps before marking their task as done:**
+
+1. ✅ **Implement ALL deliverables** specified in their task file
+2. ✅ **Write and run tests** - Each agent task file includes testing requirements
+3. ✅ **Verify success criteria** - All checkboxes must be marked
+4. ✅ **Provide integration notes** - Document dependencies and file placement
+5. ✅ **Report any issues** encountered during implementation
+
+**Testing is non-negotiable.** Agents should NOT report completion until:
+- Code compiles without errors (C++)
+- All imports work (Python)
+- Provided test code runs successfully
+- Success criteria checkboxes are verified
+
+### Custom Slash Commands for Agent Launching
+
+**Quick Launch Commands** (to be implemented in `.claude/commands/`):
+
+```bash
+# Launch full day batches
+/launch-day1-morning    # Agents 1-6 in parallel
+/launch-day1-evening    # Agents 7-9 in parallel
+/launch-day2-morning    # Agents 10-15 in parallel
+
+# Launch individual agents
+/agent-01    # Read and complete AGENT_01_types_data_structures.md
+/agent-04    # Read and complete AGENT_04_subd_evaluator_impl.md
+
+# Integration helpers
+/integrate-day1    # Run all Day 1 integration tests
+/build-cpp        # Build C++ core and run tests
 ```
-Python Layer (Keep)               C++ Layer (Add only if bottlenecks)
-├─ All UI (PyQt6)                ├─ OpenSubdiv (exact SubD limit eval)
-├─ State management              ├─ OpenCASCADE (NURBS operations)
-├─ Workflow orchestration        └─ Geometry-heavy operations
-└─ SciPy eigensolvers (adequate)
-         ↕ pybind11 bindings
+
+**Usage Pattern:**
+```
+You: /launch-day1-morning
+Claude: [Launches 6 agents in parallel, each reading their task file]
+
+You: /integrate-day1
+Claude: [Runs CMake build, Python tests, verifies all Day 1 deliverables]
 ```
 
-**This is data-driven optimization, not premature optimization.** Profile in Week 8-9, migrate only bottlenecks.
+### Alignment with v5.0 Specification
+
+This sprint implementation follows **subdivision_surface_ceramic_mold_generation_v5.md** and **technical_implementation_guide_v5.md** exactly:
+
+**✅ Parametric Region Architecture** (v5.0 §3.1):
+- Regions defined in (face_id, u, v) parameter space
+- Agent 1 creates ParametricRegion data structure
+- All analysis engines query regions in parameter space
+
+**✅ Lossless Until Fabrication** (v5.0 §2.2):
+- Control cage transferred as JSON (vertices, faces, creases)
+- OpenSubdiv provides exact limit surface evaluation
+- Tessellation only for display, never for analysis
+- Single approximation point at G-code export
+
+**✅ Mathematical Lenses** (v5.0 §4):
+- Day 4-5: Differential Decomposition (curvature analysis)
+- Day 5: Spectral Decomposition (Laplace-Beltrami eigenfunctions)
+- Future: Flow, Morse, Thermal, Slip Flow lenses
+
+**✅ OpenSubdiv Integration** (Technical Guide §2.1):
+- Day 1: SubDEvaluator wrapper for TopologyRefiner
+- Stam 1998 eigenanalysis for exact evaluation
+- Metal backend for GPU acceleration (macOS)
+- Catmull-Clark subdivision scheme
+
+**✅ OpenCASCADE Integration** (Technical Guide §3.1):
+- Day 7: NURBS surface fitting from exact limit points
+- Day 7: Draft angle transformation
+- Day 7: Solid Brep creation for molds
+
+**✅ pybind11 Bindings** (Technical Guide §4.1):
+- Day 1: Initial bindings for SubDEvaluator
+- Zero-copy numpy array sharing
+- All C++ classes exposed to Python layer
 
 ### Current Implementation (v0.4.0 - Desktop Application)
 The project has transitioned from a Grasshopper-based implementation (archived in `.Archive/251013/`) to a professional PyQt6 desktop application.
