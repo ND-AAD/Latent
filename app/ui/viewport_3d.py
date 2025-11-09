@@ -420,6 +420,9 @@ class Viewport3D(QWidget):
                 region_colors[face_id] = color
 
         # Update SubD model with colors
+        if not hasattr(self, 'subd_model') or self.subd_model is None:
+            self.log_debug("⚠️ No SubD model loaded, skipping region display")
+            return
         self.subd_model.set_region_colors(region_colors)
 
         # Clear existing SubD actors
