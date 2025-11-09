@@ -366,6 +366,16 @@ class HighlightManager:
 
         points = polydata.GetPoints()
 
+        # Calculate adaptive radius based on model bounds
+        bounds = polydata.GetBounds()
+        model_size = max(
+            bounds[1] - bounds[0],  # X extent
+            bounds[3] - bounds[2],  # Y extent
+            bounds[5] - bounds[4]   # Z extent
+        )
+        # Highlight spheres should be LARGER than guide spheres (2.5% vs 0.8%)
+        highlight_radius = model_size * 0.025
+
         for vertex_id in vertex_ids:
             if vertex_id < points.GetNumberOfPoints():
                 point = points.GetPoint(vertex_id)
@@ -373,7 +383,7 @@ class HighlightManager:
                 # Create sphere at vertex
                 sphere = vtk.vtkSphereSource()
                 sphere.SetCenter(point)
-                sphere.SetRadius(0.05)  # Adjust based on model scale
+                sphere.SetRadius(highlight_radius)  # Adaptive, larger than guide spheres
                 sphere.SetPhiResolution(16)
                 sphere.SetThetaResolution(16)
 
@@ -383,6 +393,7 @@ class HighlightManager:
                 actor = vtk.vtkActor()
                 actor.SetMapper(mapper)
                 actor.GetProperty().SetColor(color)
+                actor.PickableOff()  # Don't interfere with picking
 
                 self.renderer.AddActor(actor)
                 self.highlight_actors.append(actor)
