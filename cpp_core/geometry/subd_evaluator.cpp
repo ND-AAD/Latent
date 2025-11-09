@@ -55,6 +55,15 @@ void SubDEvaluator::initialize(const SubDControlCage& cage) {
     // Store control vertices for later interpolation
     g_control_vertices = cage.vertices;
 
+    // Store control positions as flat array for patch evaluation
+    control_positions_.clear();
+    control_positions_.reserve(cage.vertex_count() * 3);
+    for (const auto& v : cage.vertices) {
+        control_positions_.push_back(v.x);
+        control_positions_.push_back(v.y);
+        control_positions_.push_back(v.z);
+    }
+
     // Build TopologyDescriptor from cage
     Far::TopologyDescriptor desc;
     desc.numVertices = cage.vertex_count();
@@ -468,6 +477,236 @@ size_t SubDEvaluator::get_control_vertex_count() const {
 size_t SubDEvaluator::get_control_face_count() const {
     if (!initialized_) return 0;
     return refiner_->GetLevel(0).GetNumFaces();
+}
+
+// ============================================================
+// Advanced Limit Surface Evaluation (Day 2, Agent 10)
+// ============================================================
+
+void SubDEvaluator::ensure_patch_table() const {
+    if (patch_table_) return;  // Already built
+
+    using namespace OpenSubdiv;
+
+    // Ensure the refiner has been refined at least once
+    int current_max_level = refiner_->GetMaxLevel();
+    if (current_max_level < 2) {
+        // Need to refine for patch table generation
+        Far::TopologyRefiner::UniformOptions options(2);
+        refiner_->RefineUniform(options);
+    }
+
+    // Create patch table for limit evaluation
+    Far::PatchTableFactory::Options options;
+    options.endCapType = Far::PatchTableFactory::Options::ENDCAP_GREGORY_BASIS;
+    options.useInfSharpPatch = true;
+    options.generateFVarTables = false;
+
+    // Build patch table from refiner
+    patch_table_.reset(
+        Far::PatchTableFactory::Create(*refiner_, options)
+    );
+
+    if (!patch_table_) {
+        throw std::runtime_error("Failed to create PatchTable");
+    }
+}
+
+void SubDEvaluator::evaluate_limit_with_derivatives(
+    int face_index, float u, float v,
+    Point3D& position,
+    Point3D& du,
+    Point3D& dv) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    // Validate parameters
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+        throw std::runtime_error("Invalid parametric coordinates (u,v must be in [0,1])");
+    }
+
+    using namespace OpenSubdiv;
+
+    Far::TopologyLevel const& base_level = refiner_->GetLevel(0);
+    if (face_index < 0 || face_index >= base_level.GetNumFaces()) {
+        throw std::runtime_error("Invalid face index");
+    }
+
+    ensure_patch_table();
+
+    // Create patch map
+    Far::PatchMap patch_map(*patch_table_);
+
+    // Find patch handle for (face, u, v)
+    Far::PatchTable::PatchHandle const* handle =
+        patch_map.FindPatch(face_index, u, v);
+
+    if (!handle) {
+        throw std::runtime_error("Invalid face or parameters - could not find patch");
+    }
+
+    // Allocate output buffers
+    float p[3], du_out[3], dv_out[3];
+
+    // Evaluate position and derivatives
+    patch_table_->Evaluate(*handle, u, v,
+                           control_positions_.data(),
+                           p, du_out, dv_out);
+
+    // Convert to Point3D
+    position = Point3D(p[0], p[1], p[2]);
+    du = Point3D(du_out[0], du_out[1], du_out[2]);
+    dv = Point3D(dv_out[0], dv_out[1], dv_out[2]);
+}
+
+void SubDEvaluator::evaluate_limit_with_second_derivatives(
+    int face_index, float u, float v,
+    Point3D& position,
+    Point3D& du, Point3D& dv,
+    Point3D& duu, Point3D& dvv, Point3D& duv) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    // Validate parameters
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+        throw std::runtime_error("Invalid parametric coordinates");
+    }
+
+    using namespace OpenSubdiv;
+
+    Far::TopologyLevel const& base_level = refiner_->GetLevel(0);
+    if (face_index < 0 || face_index >= base_level.GetNumFaces()) {
+        throw std::runtime_error("Invalid face index");
+    }
+
+    ensure_patch_table();
+
+    // Get patch handle
+    Far::PatchMap patch_map(*patch_table_);
+    Far::PatchTable::PatchHandle const* handle =
+        patch_map.FindPatch(face_index, u, v);
+
+    if (!handle) {
+        throw std::runtime_error("Invalid face or parameters - could not find patch");
+    }
+
+    // Output buffers
+    float p[3];
+    float d1[6];  // [du_x, du_y, du_z, dv_x, dv_y, dv_z]
+    float d2[9];  // [duu_x, duu_y, duu_z, dvv_x, dvv_y, dvv_z, duv_x, duv_y, duv_z]
+
+    // Evaluate with second derivatives
+    patch_table_->EvaluateBasis(*handle, u, v,
+                                control_positions_.data(),
+                                p, d1, d2);
+
+    // Convert outputs
+    position = Point3D(p[0], p[1], p[2]);
+    du = Point3D(d1[0], d1[1], d1[2]);
+    dv = Point3D(d1[3], d1[4], d1[5]);
+    duu = Point3D(d2[0], d2[1], d2[2]);
+    dvv = Point3D(d2[3], d2[4], d2[5]);
+    duv = Point3D(d2[6], d2[7], d2[8]);
+}
+
+TessellationResult SubDEvaluator::batch_evaluate_limit(
+    const std::vector<int>& face_indices,
+    const std::vector<float>& params_u,
+    const std::vector<float>& params_v) const {
+
+    if (!initialized_) {
+        throw std::runtime_error("SubDEvaluator not initialized");
+    }
+
+    size_t num_points = face_indices.size();
+    if (params_u.size() != num_points || params_v.size() != num_points) {
+        throw std::runtime_error("Parameter array size mismatch");
+    }
+
+    TessellationResult result;
+    result.vertices.reserve(num_points * 3);
+    result.normals.reserve(num_points * 3);
+    result.face_parents.reserve(num_points);
+
+    // Evaluate each point
+    for (size_t i = 0; i < num_points; ++i) {
+        Point3D pos, du, dv;
+        evaluate_limit_with_derivatives(
+            face_indices[i], params_u[i], params_v[i],
+            pos, du, dv
+        );
+
+        // Add position
+        result.vertices.push_back(pos.x);
+        result.vertices.push_back(pos.y);
+        result.vertices.push_back(pos.z);
+
+        // Compute normal as cross(du, dv)
+        Point3D normal;
+        normal.x = du.y * dv.z - du.z * dv.y;
+        normal.y = du.z * dv.x - du.x * dv.z;
+        normal.z = du.x * dv.y - du.y * dv.x;
+
+        // Normalize
+        float length = std::sqrt(
+            normal.x * normal.x +
+            normal.y * normal.y +
+            normal.z * normal.z
+        );
+
+        if (length > 1e-8f) {
+            normal.x /= length;
+            normal.y /= length;
+            normal.z /= length;
+        } else {
+            // Degenerate case - use default normal
+            normal.x = 0.0f;
+            normal.y = 0.0f;
+            normal.z = 1.0f;
+        }
+
+        result.normals.push_back(normal.x);
+        result.normals.push_back(normal.y);
+        result.normals.push_back(normal.z);
+
+        // Store parent face
+        result.face_parents.push_back(face_indices[i]);
+    }
+
+    return result;
+}
+
+void SubDEvaluator::compute_tangent_frame(
+    int face_index, float u, float v,
+    Point3D& tangent_u,
+    Point3D& tangent_v,
+    Point3D& normal) const {
+
+    Point3D position;
+    evaluate_limit_with_derivatives(face_index, u, v,
+                                    position, tangent_u, tangent_v);
+
+    // Normalize tangents
+    auto normalize = [](Point3D& v) {
+        float len = std::sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+        if (len > 1e-8f) {
+            v.x /= len; v.y /= len; v.z /= len;
+        }
+    };
+
+    normalize(tangent_u);
+    normalize(tangent_v);
+
+    // Normal = cross(tangent_u, tangent_v)
+    normal.x = tangent_u.y * tangent_v.z - tangent_u.z * tangent_v.y;
+    normal.y = tangent_u.z * tangent_v.x - tangent_u.x * tangent_v.z;
+    normal.z = tangent_u.x * tangent_v.y - tangent_u.y * tangent_v.x;
+
+    normalize(normal);
 }
 
 }  // namespace latent
