@@ -795,7 +795,7 @@ class Viewport3D(QWidget):
             mode: EditMode enum value
         """
         from app.state.edit_mode import EditMode
-        from app.ui.picker import SubDFacePicker, SubDEdgePicker, SubDVertexPicker
+        from app.ui.pickers import SubDFacePicker, SubDEdgePicker, SubDVertexPicker
 
         self.edit_mode = mode
 
@@ -835,6 +835,12 @@ class Viewport3D(QWidget):
 
         elif mode == EditMode.VERTEX:
             self.picker = SubDVertexPicker(self.renderer, self.render_window)
+            # Setup vertex sphere rendering if we have polydata
+            if self.current_polydata:
+                print(f"🔧 Setting up vertex rendering with {self.current_polydata.GetNumberOfPoints()} vertices")
+                self.picker.setup_vertex_rendering(self.current_polydata)
+            else:
+                print("⚠️ No polydata available for vertex rendering yet")
             # Make main geometry pickable in vertex mode
             if self.geometry_actor:
                 self.geometry_actor.PickableOn()

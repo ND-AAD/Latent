@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QDockWidget, QToolBar
 )
 from PyQt6.QtCore import Qt, QTimer, QSettings
-from PyQt6.QtGui import QAction, QTextCursor
+from PyQt6.QtGui import QAction, QTextCursor, QShortcut, QKeySequence
 
 # Add app directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -23,9 +23,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 from app.ui.viewport_3d import Viewport3D
 from app.ui.viewport_layout import ViewportLayoutManager, ViewportLayout, ViewType
 from app.ui.region_list_widget import RegionListWidget
+from app.ui.region_properties_dialog import RegionPropertiesDialog
 from app.ui.analysis_panel import AnalysisPanel
 from app.ui.constraint_panel import ConstraintPanel
 from app.ui.edit_mode_toolbar import EditModeToolBar, EditModeWidget
+from app.ui.selection_info_panel import SelectionInfoPanel
 from app.bridge.rhino_bridge import RhinoBridge
 from app.bridge.geometry_receiver import GeometryReceiver
 from app.bridge.subd_fetcher import SubDFetcher
@@ -132,6 +134,9 @@ class MainWindow(QMainWindow):
         self.edit_mode_toolbar = EditModeToolBar(self)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.edit_mode_toolbar)
 
+        # Setup keyboard shortcuts for edit modes
+        self.setup_edit_mode_shortcuts()
+
         # Create analysis toolbar
         self.create_analysis_toolbar()
 
@@ -231,7 +236,37 @@ class MainWindow(QMainWindow):
         redo_action.setShortcut("Ctrl+Shift+Z")
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
-        
+
+        edit_menu.addSeparator()
+
+        # Selection operations
+        clear_sel_action = QAction("Clear Selection", self)
+        clear_sel_action.setShortcut("Esc")
+        clear_sel_action.triggered.connect(self.clear_selection)
+        edit_menu.addAction(clear_sel_action)
+
+        select_all_action = QAction("Select All", self)
+        select_all_action.setShortcut("Ctrl+A")
+        select_all_action.triggered.connect(self.select_all)
+        edit_menu.addAction(select_all_action)
+
+        invert_sel_action = QAction("Invert Selection", self)
+        invert_sel_action.setShortcut("Ctrl+I")
+        invert_sel_action.triggered.connect(self.invert_selection)
+        edit_menu.addAction(invert_sel_action)
+
+        edit_menu.addSeparator()
+
+        grow_sel_action = QAction("Grow Selection", self)
+        grow_sel_action.setShortcut("Ctrl+>")
+        grow_sel_action.triggered.connect(self.grow_selection)
+        edit_menu.addAction(grow_sel_action)
+
+        shrink_sel_action = QAction("Shrink Selection", self)
+        shrink_sel_action.setShortcut("Ctrl+<")
+        shrink_sel_action.triggered.connect(self.shrink_selection)
+        edit_menu.addAction(shrink_sel_action)
+
         # Analysis menu
         analysis_menu = menubar.addMenu("Analysis")
         
@@ -297,6 +332,34 @@ class MainWindow(QMainWindow):
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+
+    def setup_edit_mode_shortcuts(self):
+        """Setup keyboard shortcuts for edit mode switching"""
+        # S = Solid mode
+        solid_shortcut = QShortcut(QKeySequence("S"), self)
+        solid_shortcut.activated.connect(
+            lambda: self.state.edit_mode_manager.set_mode(EditMode.SOLID)
+        )
+
+        # P = Panel mode
+        panel_shortcut = QShortcut(QKeySequence("P"), self)
+        panel_shortcut.activated.connect(
+            lambda: self.state.edit_mode_manager.set_mode(EditMode.PANEL)
+        )
+
+        # E = Edge mode
+        edge_shortcut = QShortcut(QKeySequence("E"), self)
+        edge_shortcut.activated.connect(
+            lambda: self.state.edit_mode_manager.set_mode(EditMode.EDGE)
+        )
+
+        # V = Vertex mode
+        vertex_shortcut = QShortcut(QKeySequence("V"), self)
+        vertex_shortcut.activated.connect(
+            lambda: self.state.edit_mode_manager.set_mode(EditMode.VERTEX)
+        )
+
+        self.log_debug("⌨️ Edit mode shortcuts: S=Solid | P=Panel | E=Edge | V=Vertex")
 
     def create_analysis_toolbar(self):
         """Create analysis toolbar with quick actions"""
@@ -377,6 +440,16 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, constraint_dock)
         self.constraint_dock = constraint_dock
 
+        # Selection Info Panel (right side, bottom)
+        self.selection_info_panel = SelectionInfoPanel()
+        selection_dock = QDockWidget("Selection Info", self)
+        selection_dock.setWidget(self.selection_info_panel)
+        selection_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
+                                        Qt.DockWidgetArea.RightDockWidgetArea |
+                                        Qt.DockWidgetArea.BottomDockWidgetArea)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, selection_dock)
+        self.selection_dock = selection_dock
+
         # Debug Console (bottom)
         debug_widget = QWidget()
         debug_layout = QVBoxLayout(debug_widget)
@@ -407,6 +480,7 @@ class MainWindow(QMainWindow):
 
         # Stack the right-side docks vertically
         self.tabifyDockWidget(constraint_dock, analysis_dock)
+        self.tabifyDockWidget(constraint_dock, selection_dock)
         analysis_dock.raise_()  # Bring analysis to front
 
         # Add menu actions to show/hide docks
@@ -422,6 +496,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.analysis_dock.toggleViewAction())
         view_menu.addAction(self.region_dock.toggleViewAction())
         view_menu.addAction(self.constraint_dock.toggleViewAction())
+        view_menu.addAction(self.selection_dock.toggleViewAction())
         view_menu.addAction(self.debug_dock.toggleViewAction())
 
         view_menu.addSeparator()
@@ -437,22 +512,26 @@ class MainWindow(QMainWindow):
         self.removeDockWidget(self.analysis_dock)
         self.removeDockWidget(self.region_dock)
         self.removeDockWidget(self.constraint_dock)
+        self.removeDockWidget(self.selection_dock)
         self.removeDockWidget(self.debug_dock)
 
         # Re-add in default positions
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.analysis_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.region_dock)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.constraint_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.selection_dock)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.debug_dock)
 
-        # Stack analysis and constraint
+        # Stack analysis, constraint, and selection
         self.tabifyDockWidget(self.constraint_dock, self.analysis_dock)
+        self.tabifyDockWidget(self.constraint_dock, self.selection_dock)
         self.analysis_dock.raise_()
 
         # Show all docks
         self.analysis_dock.show()
         self.region_dock.show()
         self.constraint_dock.show()
+        self.selection_dock.show()
         self.debug_dock.show()
 
         self.status_bar.showMessage("Panel layout reset to default", 2000)
@@ -583,6 +662,7 @@ class MainWindow(QMainWindow):
         self.region_list.region_selected.connect(self.on_region_selected)
         self.region_list.region_pinned.connect(self.on_region_pinned)
         self.region_list.region_edit_requested.connect(self.on_region_edit)
+        self.region_list.region_properties_requested.connect(self.on_region_properties)
 
         # Viewport connections - connect signals for each viewport as they're created
         # These will be connected when viewports are created in the layout manager
@@ -592,6 +672,16 @@ class MainWindow(QMainWindow):
         self.edit_mode_toolbar.mode_changed.connect(self.on_edit_mode_changed)
         self.state.edit_mode_changed.connect(self.on_edit_mode_changed)
         self.state.selection_changed.connect(self.on_selection_changed)
+
+        # Edit mode toolbar selection operations
+        self.edit_mode_toolbar.clear_selection_requested.connect(self.clear_selection)
+        self.edit_mode_toolbar.select_all_requested.connect(self.select_all)
+        self.edit_mode_toolbar.invert_selection_requested.connect(self.invert_selection)
+        self.edit_mode_toolbar.grow_selection_requested.connect(self.grow_selection)
+        self.edit_mode_toolbar.shrink_selection_requested.connect(self.shrink_selection)
+
+        # Selection info panel connections
+        self.selection_info_panel.export_to_region_requested.connect(self.export_selection_to_region)
 
         # Bridge connections
         self.rhino_bridge.geometry_received.connect(self.on_geometry_received)
@@ -914,7 +1004,36 @@ class MainWindow(QMainWindow):
         if active_viewport:
             active_viewport.enable_boundary_editing(region_id)
         self.status_bar.showMessage(f"Editing boundary of {region_id}")
-    
+
+    def on_region_properties(self, region_id):
+        """Handle region properties dialog request"""
+        region = self.state.get_region(region_id)
+        if region:
+            # Create and show properties dialog
+            dialog = RegionPropertiesDialog(region, self)
+
+            # Connect dialog signals
+            dialog.properties_changed.connect(self.on_region_properties_changed)
+
+            # Show dialog modally
+            dialog.exec()
+
+    def on_region_properties_changed(self, region_id, updated_properties):
+        """Handle changes from properties dialog"""
+        # Apply changes through state manager
+        if 'pinned' in updated_properties:
+            self.state.set_region_pinned(region_id, updated_properties['pinned'])
+
+        # Update region list display
+        self.region_list.set_regions(self.state.regions)
+
+        # Update viewport display
+        active_viewport = self.viewport_layout.get_active_viewport()
+        if active_viewport:
+            active_viewport.update_region_display(region_id)
+
+        self.status_bar.showMessage(f"Updated properties for {region_id}", 2000)
+
     def on_viewport_region_clicked(self, region_id):
         """Handle region click in viewport"""
         self.region_list.select_region(region_id)
@@ -946,9 +1065,61 @@ class MainWindow(QMainWindow):
         info = self.state.edit_mode_manager.get_selection_info()
         self.edit_mode_toolbar.update_selection_info(info)
 
+        # Update selection info panel
+        self.selection_info_panel.update_selection(selection)
+
         # Update viewports with selection
         for viewport in self.viewport_layout.viewports:
             viewport.update_selection(selection)
+
+    def clear_selection(self):
+        """Clear current selection"""
+        self.state.edit_mode_manager.clear_selection()
+        self.log_debug("🔄 Selection cleared")
+
+    def select_all(self):
+        """Select all elements in current mode"""
+        # TODO: Implement when we have actual geometry
+        self.log_debug("⚠️ Select All not yet implemented (requires geometry)")
+        self.status_bar.showMessage("Select All requires SubD geometry", 2000)
+
+    def invert_selection(self):
+        """Invert current selection"""
+        # TODO: Implement when we have actual geometry
+        self.log_debug("⚠️ Invert Selection not yet implemented (requires geometry)")
+        self.status_bar.showMessage("Invert Selection requires SubD geometry", 2000)
+
+    def grow_selection(self):
+        """Grow selection to topological neighbors"""
+        # TODO: Implement when we have actual geometry with topology
+        self.log_debug("⚠️ Grow Selection not yet implemented (requires topology)")
+        self.status_bar.showMessage("Grow Selection requires SubD topology", 2000)
+
+    def shrink_selection(self):
+        """Shrink selection by removing boundary elements"""
+        # TODO: Implement when we have actual geometry with topology
+        self.log_debug("⚠️ Shrink Selection not yet implemented (requires topology)")
+        self.status_bar.showMessage("Shrink Selection requires SubD topology", 2000)
+
+    def export_selection_to_region(self):
+        """Export selected faces to a new parametric region"""
+        face_indices = self.state.edit_mode_manager.create_region_from_selection()
+
+        if face_indices:
+            # Create a new region from selected faces
+            region = ParametricRegion(
+                id=f"user_region_{len(self.state.regions) + 1}",
+                faces=face_indices,
+                unity_principle="User-defined region",
+                unity_strength=1.0,
+                pinned=True
+            )
+            self.state.add_region(region)
+            self.log_debug(f"✅ Created region from {len(face_indices)} selected faces")
+            self.status_bar.showMessage(f"Created region with {len(face_indices)} faces", 3000)
+        else:
+            self.log_debug("⚠️ No faces selected - select faces in Panel mode first")
+            self.status_bar.showMessage("Select faces in Panel mode to export", 2000)
 
     def generate_molds(self):
         """Generate mold geometry"""

@@ -19,6 +19,7 @@ class RegionListWidget(QWidget):
     region_pinned = pyqtSignal(str, bool)  # region_id, is_pinned
     region_edit_requested = pyqtSignal(str)  # region_id
     region_deleted = pyqtSignal(str)  # region_id
+    region_properties_requested = pyqtSignal(str)  # region_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -60,6 +61,7 @@ class RegionListWidget(QWidget):
         # List widget
         self.list_widget = QListWidget()
         self.list_widget.itemSelectionChanged.connect(self.on_selection_changed)
+        self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
         self.list_widget.setAlternatingRowColors(True)
         layout.addWidget(self.list_widget)
 
@@ -224,6 +226,12 @@ class RegionListWidget(QWidget):
             self.edit_btn.setEnabled(False)
             self.delete_btn.setEnabled(False)
             self.stats_label.setText("Select a region to view details")
+
+    def on_item_double_clicked(self, item):
+        """Handle double-click on region item to open properties"""
+        if item:
+            region_id = item.data(Qt.ItemDataRole.UserRole)
+            self.region_properties_requested.emit(region_id)
 
     def update_stats(self, region):
         """Update statistics display for selected region"""

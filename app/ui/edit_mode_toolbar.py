@@ -42,6 +42,12 @@ class EditModeToolBar(QToolBar):
         # Add separator after mode buttons
         self.addSeparator()
 
+        # Add selection operation buttons
+        self._create_selection_buttons()
+
+        # Add separator
+        self.addSeparator()
+
         # Add selection info label
         self.selection_info = QLabel("No selection")
         self.selection_info.setStyleSheet("padding: 0 10px;")
@@ -105,6 +111,51 @@ class EditModeToolBar(QToolBar):
             # Add to toolbar
             self.addWidget(button)
 
+    def _create_selection_buttons(self):
+        """Create selection operation buttons"""
+        # Clear selection
+        clear_btn = QToolButton()
+        clear_btn.setText("✕ Clear")
+        clear_btn.setToolTip("Clear selection (Esc)")
+        clear_btn.setAutoRaise(True)
+        clear_btn.clicked.connect(self.clear_selection)
+        self.addWidget(clear_btn)
+
+        # Select all
+        select_all_btn = QToolButton()
+        select_all_btn.setText("☑ All")
+        select_all_btn.setToolTip("Select all in current mode (Ctrl+A)")
+        select_all_btn.setAutoRaise(True)
+        select_all_btn.clicked.connect(self.select_all)
+        self.addWidget(select_all_btn)
+
+        # Invert selection
+        invert_btn = QToolButton()
+        invert_btn.setText("⇄ Invert")
+        invert_btn.setToolTip("Invert selection (Ctrl+I)")
+        invert_btn.setAutoRaise(True)
+        invert_btn.clicked.connect(self.invert_selection)
+        self.addWidget(invert_btn)
+
+        # Add separator
+        self.addSeparator()
+
+        # Grow selection
+        grow_btn = QToolButton()
+        grow_btn.setText("+ Grow")
+        grow_btn.setToolTip("Grow selection to neighbors (Ctrl+>)")
+        grow_btn.setAutoRaise(True)
+        grow_btn.clicked.connect(self.grow_selection)
+        self.addWidget(grow_btn)
+
+        # Shrink selection
+        shrink_btn = QToolButton()
+        shrink_btn.setText("- Shrink")
+        shrink_btn.setToolTip("Shrink selection (Ctrl+<)")
+        shrink_btn.setAutoRaise(True)
+        shrink_btn.clicked.connect(self.shrink_selection)
+        self.addWidget(shrink_btn)
+
     def _on_mode_button_clicked(self, button_id: int):
         """Handle mode button click"""
         # Map button ID to mode
@@ -121,6 +172,33 @@ class EditModeToolBar(QToolBar):
     def update_selection_info(self, info: str):
         """Update the selection information display"""
         self.selection_info.setText(info)
+
+    # Selection operation signals
+    clear_selection_requested = pyqtSignal()
+    select_all_requested = pyqtSignal()
+    invert_selection_requested = pyqtSignal()
+    grow_selection_requested = pyqtSignal()
+    shrink_selection_requested = pyqtSignal()
+
+    def clear_selection(self):
+        """Signal to clear selection"""
+        self.clear_selection_requested.emit()
+
+    def select_all(self):
+        """Signal to select all in current mode"""
+        self.select_all_requested.emit()
+
+    def invert_selection(self):
+        """Signal to invert selection"""
+        self.invert_selection_requested.emit()
+
+    def grow_selection(self):
+        """Signal to grow selection"""
+        self.grow_selection_requested.emit()
+
+    def shrink_selection(self):
+        """Signal to shrink selection"""
+        self.shrink_selection_requested.emit()
 
 
 class EditModeWidget(QWidget):

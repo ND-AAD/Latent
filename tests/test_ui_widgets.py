@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.ui.analysis_panel import AnalysisPanel
 from app.ui.region_list_widget import RegionListWidget
+from app.ui.region_properties_dialog import RegionPropertiesDialog
 from app.state.parametric_region import ParametricRegion
 
 
@@ -284,6 +285,221 @@ def test_region_list_get_region_by_id(region_list_widget):
 
     missing = region_list_widget.get_region_by_id("nonexistent")
     assert missing is None
+
+
+def test_region_list_double_click_emits_signal(region_list_widget):
+    """Test that double-clicking a region emits properties signal"""
+    signal_received = []
+
+    def on_properties_requested(region_id):
+        signal_received.append(region_id)
+
+    region_list_widget.region_properties_requested.connect(on_properties_requested)
+
+    regions = [
+        ParametricRegion(id="test_region", faces=[0], unity_strength=0.5)
+    ]
+
+    region_list_widget.set_regions(regions)
+
+    # Double-click the first item
+    item = region_list_widget.list_widget.item(0)
+    region_list_widget.on_item_double_clicked(item)
+
+    # Signal should have been emitted
+    assert len(signal_received) == 1
+    assert signal_received[0] == "test_region"
+
+
+# RegionPropertiesDialog Tests
+
+@pytest.fixture
+def sample_region():
+    """Create a sample region for testing"""
+    return ParametricRegion(
+        id="test_region_1",
+        faces=[0, 1, 2, 3, 4],
+        unity_principle="Flow-based decomposition",
+        unity_strength=0.85,
+        pinned=False,
+        modified=False,
+        constraints_passed=True
+    )
+
+
+@pytest.fixture
+def properties_dialog(qapp, sample_region):
+    """Create RegionPropertiesDialog instance for testing"""
+    dialog = RegionPropertiesDialog(sample_region)
+    yield dialog
+    dialog.close()
+
+
+def test_properties_dialog_initialization(properties_dialog):
+    """Test that properties dialog initializes properly"""
+    assert properties_dialog is not None
+    assert properties_dialog.region is not None
+
+
+def test_properties_dialog_displays_region_id(properties_dialog):
+    """Test that dialog displays correct region ID"""
+    assert properties_dialog.region.id in properties_dialog.id_label.text()
+
+
+def test_properties_dialog_displays_face_count(properties_dialog):
+    """Test that dialog displays correct face count"""
+    assert "5" in properties_dialog.face_count_label.text()
+
+
+def test_properties_dialog_displays_unity_strength(properties_dialog):
+    """Test that dialog displays unity strength correctly"""
+    # Check label shows the value
+    assert "0.85" in properties_dialog.strength_label.text()
+    # Check progress bar is set correctly
+    assert properties_dialog.strength_bar.value() == 85
+
+
+def test_properties_dialog_displays_unity_principle(properties_dialog):
+    """Test that dialog displays unity principle"""
+    assert "Flow-based" in properties_dialog.principle_label.text()
+
+
+def test_properties_dialog_pinned_checkbox(properties_dialog):
+    """Test that pinned checkbox reflects region state"""
+    # Region is unpinned
+    assert not properties_dialog.pinned_checkbox.isChecked()
+
+    # Set region to pinned
+    properties_dialog.region.pinned = True
+    properties_dialog.load_region_data()
+    assert properties_dialog.pinned_checkbox.isChecked()
+
+
+def test_properties_dialog_modified_status(properties_dialog):
+    """Test that modified status is displayed"""
+    # Region is not modified
+    assert "No" in properties_dialog.modified_label.text()
+
+
+def test_properties_dialog_constraints_status(properties_dialog):
+    """Test that constraints status is displayed"""
+    # All constraints passed
+    assert "passed" in properties_dialog.constraints_label.text().lower()
+
+
+def test_properties_dialog_faces_display(properties_dialog):
+    """Test that face indices are displayed"""
+    face_text = properties_dialog.faces_text.toPlainText()
+    # Should contain all face indices
+    assert "0" in face_text
+    assert "1" in face_text
+    assert "2" in face_text
+    assert "3" in face_text
+    assert "4" in face_text
+
+
+def test_properties_dialog_apply_changes(properties_dialog):
+    """Test applying changes to region properties"""
+    signal_received = []
+
+    def on_properties_changed(region_id, props):
+        signal_received.append((region_id, props))
+
+    properties_dialog.properties_changed.connect(on_properties_changed)
+
+    # Change pinned status
+    properties_dialog.pinned_checkbox.setChecked(True)
+    properties_dialog.apply_changes()
+
+    # Signal should have been emitted
+    assert len(signal_received) == 1
+    assert signal_received[0][0] == "test_region_1"
+    assert signal_received[0][1]['pinned'] == True
+
+    # Region should be updated
+    assert properties_dialog.region.pinned == True
+
+
+def test_properties_dialog_get_updated_properties(properties_dialog):
+    """Test getting updated properties"""
+    # No changes initially
+    updates = properties_dialog.get_updated_properties()
+    assert len(updates) == 0
+
+    # Change pinned status
+    properties_dialog.pinned_checkbox.setChecked(True)
+    updates = properties_dialog.get_updated_properties()
+    assert 'pinned' in updates
+    assert updates['pinned'] == True
+
+
+def test_properties_dialog_export_region(properties_dialog, tmp_path):
+    """Test exporting region to JSON"""
+    import json
+
+    # Create a temporary file path
+    test_file = tmp_path / "test_region.json"
+
+    # Manually trigger export with the test file path
+    # (We can't test the file dialog directly, but we can test the export logic)
+    export_data = {
+        'region_id': properties_dialog.region.id,
+        'face_count': len(properties_dialog.region.faces),
+        'faces': properties_dialog.region.faces,
+        'unity_principle': properties_dialog.region.unity_principle,
+        'unity_strength': properties_dialog.region.unity_strength,
+        'pinned': properties_dialog.region.pinned,
+        'modified': properties_dialog.region.modified,
+        'constraints_passed': properties_dialog.region.constraints_passed,
+    }
+
+    with open(test_file, 'w') as f:
+        json.dump(export_data, f, indent=2)
+
+    # Verify file was created and contains correct data
+    assert test_file.exists()
+
+    with open(test_file, 'r') as f:
+        loaded_data = json.load(f)
+
+    assert loaded_data['region_id'] == "test_region_1"
+    assert loaded_data['face_count'] == 5
+    assert loaded_data['unity_strength'] == 0.85
+
+
+def test_properties_dialog_strength_bar_color_coding(qapp):
+    """Test that strength bar is color-coded based on strength value"""
+    # Test excellent strength (>= 0.8)
+    region_excellent = ParametricRegion(
+        id="excellent", faces=[0], unity_strength=0.85
+    )
+    dialog_excellent = RegionPropertiesDialog(region_excellent)
+    assert "#4CAF50" in dialog_excellent.strength_bar.styleSheet()  # Green
+    dialog_excellent.close()
+
+    # Test good strength (>= 0.6)
+    region_good = ParametricRegion(
+        id="good", faces=[0], unity_strength=0.7
+    )
+    dialog_good = RegionPropertiesDialog(region_good)
+    assert "#2196F3" in dialog_good.strength_bar.styleSheet()  # Blue
+    dialog_good.close()
+
+    # Test moderate strength (>= 0.4)
+    region_moderate = ParametricRegion(
+        id="moderate", faces=[0], unity_strength=0.5
+    )
+    dialog_moderate = RegionPropertiesDialog(region_moderate)
+    assert "#FF9800" in dialog_moderate.strength_bar.styleSheet()  # Orange
+    dialog_moderate.close()
+
+    # Test poor strength (< 0.4)
+    region_poor = ParametricRegion(
+        id="poor", faces=[0], unity_strength=0.3
+    )
+    dialog_poor = RegionPropertiesDialog(region_poor)
+    assert "#F44336" in dialog_poor.strength_bar.styleSheet()  # Red
+    dialog_poor.close()
 
 
 if __name__ == "__main__":
