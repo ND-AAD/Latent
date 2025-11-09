@@ -103,6 +103,10 @@ add_library(cpp_core_static STATIC
     geometry/subd_evaluator.cpp
     utils/mesh_mapping.cpp
     analysis/curvature_analyzer.cpp
+    constraints/constraint_report.cpp
+    constraints/constraint_validator.cpp
+    constraints/draft_checker.cpp
+    constraints/undercut_detector.cpp
 )
 
 # Set output name to cpp_core (without _static suffix)
@@ -155,6 +159,12 @@ target_link_libraries(test_limit_evaluation PRIVATE cpp_core_static)
 
 add_executable(test_curvature test_curvature.cpp)
 target_link_libraries(test_curvature PRIVATE cpp_core_static)
+
+add_executable(test_validator_header test_validator_header.cpp)
+target_link_libraries(test_validator_header PRIVATE cpp_core_static)
+
+add_executable(test_draft_checker test_draft_checker.cpp)
+target_link_libraries(test_draft_checker PRIVATE cpp_core_static)
 
 # Install targets
 install(TARGETS cpp_core_static ARCHIVE DESTINATION lib)
