@@ -71,6 +71,7 @@ vtkSphereSource = vtk.vtkSphereSource  # For highlighting vertices
 vtkSelection = vtk.vtkSelection
 vtkSelectionNode = vtk.vtkSelectionNode
 vtkIdTypeArray = vtk.vtkIdTypeArray
+vtkIdList = vtk.vtkIdList  # For mesh traversal
 
 # Math
 vtkMath = vtk.vtkMath
