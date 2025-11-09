@@ -59,9 +59,11 @@ PYBIND11_MODULE(cpp_core, m) {
         .def_property("vertices",
             [](TessellationResult& r) {
                 // Return as numpy array (zero-copy view)
+                std::vector<ssize_t> shape = {static_cast<ssize_t>(r.vertex_count()), 3};
+                std::vector<ssize_t> strides = {3 * sizeof(float), sizeof(float)};
                 return py::array_t<float>(
-                    {r.vertex_count(), 3},  // shape (N, 3)
-                    {3 * sizeof(float), sizeof(float)},  // strides
+                    shape,
+                    strides,
                     r.vertices.data(),
                     py::cast(r)  // parent keeps data alive
                 );
@@ -80,9 +82,11 @@ PYBIND11_MODULE(cpp_core, m) {
         // Normals property with zero-copy numpy integration
         .def_property("normals",
             [](TessellationResult& r) {
+                std::vector<ssize_t> shape = {static_cast<ssize_t>(r.vertex_count()), 3};
+                std::vector<ssize_t> strides = {3 * sizeof(float), sizeof(float)};
                 return py::array_t<float>(
-                    {r.vertex_count(), 3},
-                    {3 * sizeof(float), sizeof(float)},
+                    shape,
+                    strides,
                     r.normals.data(),
                     py::cast(r)
                 );
@@ -100,9 +104,11 @@ PYBIND11_MODULE(cpp_core, m) {
         // Triangles property with zero-copy numpy integration
         .def_property("triangles",
             [](TessellationResult& r) {
+                std::vector<ssize_t> shape = {static_cast<ssize_t>(r.triangle_count()), 3};
+                std::vector<ssize_t> strides = {3 * sizeof(int), sizeof(int)};
                 return py::array_t<int>(
-                    {r.triangle_count(), 3},
-                    {3 * sizeof(int), sizeof(int)},
+                    shape,
+                    strides,
                     r.triangles.data(),
                     py::cast(r)
                 );
