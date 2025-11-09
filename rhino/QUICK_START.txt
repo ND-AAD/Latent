@@ -1,0 +1,93 @@
+================================================================================
+GRASSHOPPER HTTP SERVER - QUICK START
+================================================================================
+
+STEP 1: Setup in Grasshopper
+-----------------------------
+1. Create SubD in Rhino: _SubDSphere or _SubDBox
+2. Add Grasshopper Python 3 component
+3. Copy code from: grasshopper_http_server_control_cage.py
+4. Add inputs: SubD (type: SubD), Run (type: bool)
+5. Add outputs: Status, URL
+6. Connect SubD and Boolean Toggle to inputs
+7. Set Run = True
+
+STEP 2: Verify Server Running
+-----------------------------
+Console should show: "✅ Server started on http://localhost:8888"
+Status output should show: "✅ Server running"
+
+STEP 3: Test Server
+-----------------------------
+In terminal:
+    python3 rhino/test_gh_server.py
+
+Expected: ✅ ALL TESTS PASSED
+
+STEP 4: Test in Browser
+-----------------------------
+Open: http://localhost:8888/status
+Open: http://localhost:8888/geometry
+
+You should see JSON responses.
+
+================================================================================
+API ENDPOINTS
+================================================================================
+
+GET /status
+-----------
+Returns: {"status": "running", "port": 8888, "has_geometry": true}
+
+GET /geometry
+-------------
+Returns: {
+  "vertices": [[x,y,z], ...],
+  "faces": [[i,j,k,...], ...],
+  "creases": [[v1,v2,sharpness], ...],
+  "metadata": {"vertex_count": N, ...}
+}
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Problem: Port 8888 already in use
+Solution: Stop previous server (Run = False), or kill process: lsof -i :8888
+
+Problem: No geometry available
+Solution: Verify SubD is connected and Run = True
+
+Problem: Test client fails
+Solution: Verify server running, check firewall, try browser test
+
+================================================================================
+FOR DESKTOP INTEGRATION
+================================================================================
+
+import requests
+response = requests.get('http://localhost:8888/geometry')
+data = response.json()
+
+# Convert to C++ SubDControlCage
+cage = cpp_core.SubDControlCage()
+for v in data['vertices']:
+    cage.vertices.append(cpp_core.Point3D(v[0], v[1], v[2]))
+cage.faces = data['faces']
+cage.creases = [(c[0], c[1], c[2]) for c in data['creases']]
+
+# Build evaluator
+evaluator = cpp_core.SubDEvaluator(cage)
+
+================================================================================
+FILES
+================================================================================
+
+grasshopper_http_server_control_cage.py - Main server (use this!)
+test_gh_server.py                       - Test client
+README_HTTP_SERVER.md                   - Full documentation
+INTEGRATION_NOTES.md                    - For Agent 8
+example_response.json                   - Example output
+QUICK_START.txt                         - This file
+
+================================================================================
