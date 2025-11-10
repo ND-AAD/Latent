@@ -77,6 +77,30 @@ PYBIND11_MODULE(cpp_core, m) {
         });
 
     // ============================================================
+    // Vector3 Binding
+    // ============================================================
+    py::class_<Vector3>(m, "Vector3", "3D vector with float precision")
+        .def(py::init<>(), "Default constructor (0, 0, 0)")
+        .def(py::init<float, float, float>(), "Construct from coordinates",
+             py::arg("x"), py::arg("y"), py::arg("z"))
+        .def(py::init<const Point3D&>(), "Construct from Point3D",
+             py::arg("point"))
+        .def_readwrite("x", &Vector3::x, "X component")
+        .def_readwrite("y", &Vector3::y, "Y component")
+        .def_readwrite("z", &Vector3::z, "Z component")
+        .def("dot", &Vector3::dot, "Dot product with another vector",
+             py::arg("other"))
+        .def("length", &Vector3::length, "Length/magnitude of vector")
+        .def("normalized", &Vector3::normalized, "Return normalized unit vector")
+        .def("cross", &Vector3::cross, "Cross product with another vector",
+             py::arg("other"))
+        .def("__repr__", [](const Vector3& v) {
+            return "Vector3(" + std::to_string(v.x) + ", " +
+                   std::to_string(v.y) + ", " +
+                   std::to_string(v.z) + ")";
+        });
+
+    // ============================================================
     // SubDControlCage Binding
     // ============================================================
     py::class_<SubDControlCage>(m, "SubDControlCage",
