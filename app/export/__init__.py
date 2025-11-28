@@ -5,11 +5,12 @@ Provides serialization of OpenCASCADE NURBS surfaces to Rhino-compatible format.
 """
 
 from .nurbs_serializer import NURBSSerializer, RhinoNURBSSurface
-from .rhino_formats import validate_nurbs_data, write_json_export
+from .rhino_formats import validate_nurbs_data, write_json_export, UnboundedKnot
 
 __all__ = [
     'NURBSSerializer',
     'RhinoNURBSSurface',
     'validate_nurbs_data',
-    'write_json_export'
+    'write_json_export',
+    'UnboundedKnot'
 ]

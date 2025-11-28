@@ -7,6 +7,7 @@ Shows constraint violations in hierarchical tree:
 - FEATURE (blue): Mathematical tensions that are aesthetic features
 """
 
+from __future__ import annotations
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTreeWidget,
                              QTreeWidgetItem, QLabel)
 from PyQt6.QtCore import Qt, pyqtSignal

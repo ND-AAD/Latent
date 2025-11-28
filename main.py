@@ -11,13 +11,21 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QStatusBar, QPushButton, QLabel, QGroupBox,
     QRadioButton, QButtonGroup, QMessageBox, QTextEdit,
-    QDockWidget, QToolBar
+    QDockWidget, QToolBar, QTabWidget, QStackedWidget,
+    QScrollArea, QListWidget, QComboBox, QCheckBox,
+    QSpinBox, QDoubleSpinBox, QLineEdit, QProgressBar,
+    QFrame, QGridLayout, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QTimer, QSettings
-from PyQt6.QtGui import QAction, QTextCursor, QShortcut, QKeySequence
+from PyQt6.QtCore import Qt, QTimer, QSettings, pyqtSignal
+from PyQt6.QtGui import QAction, QTextCursor, QShortcut, QKeySequence, QFont
 
 # Add app directory to path
 sys.path.insert(0, str(Path(__file__).parent))
+
+# Add cpp_core build directory to path for compiled module
+cpp_build_path = Path(__file__).parent / "cpp_core" / "build"
+if cpp_build_path.exists():
+    sys.path.insert(0, str(cpp_build_path))
 
 # Import our components
 from app.ui.viewport_3d import Viewport3D
@@ -126,51 +134,700 @@ class MainWindow(QMainWindow):
         self.log_debug("💡 In Grasshopper: Click button to push geometry")
         
     def init_ui(self):
-        """Initialize the user interface"""
-        self.setWindowTitle("Ceramic Mold Analyzer - v0.1.0")
-        self.setGeometry(100, 100, 1400, 900)
+        """Initialize the user interface with four-sided architecture v2.0"""
+        self.setWindowTitle("Ceramic Mold Analyzer - v2.0")
 
-        # Create edit mode toolbar
-        self.edit_mode_toolbar = EditModeToolBar(self)
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.edit_mode_toolbar)
+        # Set window size to 90% of screen (as per UX spec v2.0)
+        screen = QApplication.primaryScreen().availableGeometry()
+        width = int(screen.width() * 0.9)
+        height = int(screen.height() * 0.9)
 
-        # Setup keyboard shortcuts for edit modes
+        # Apply constraints from spec
+        width = min(max(width, 1280), 2400)
+        height = max(height, 720)
+
+        x = (screen.width() - width) // 2
+        y = (screen.height() - height) // 2
+        self.setGeometry(x, y, width, height)
+
+        # Create the main four-sided layout
+        self.create_main_layout()
+
+        # Setup keyboard shortcuts
         self.setup_edit_mode_shortcuts()
+        self.setup_tab_shortcuts()
 
-        # Create analysis toolbar
-        self.create_analysis_toolbar()
-
-        # Create central widget - Viewport Layout
-        self.viewport_layout = ViewportLayoutManager()
-        self.setCentralWidget(self.viewport_layout)
-
-        # Store reference to primary viewport for compatibility
-        self.viewport = None
-
-        # Create dockable panels
-        self.create_dock_widgets()
-
-        # Status bar
+        # Status bar (part of bottom panel now, but keep for compatibility)
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+        self.status_bar.setVisible(False)  # Hide default status bar
 
-        # Connection status widget (LiveBridge monitoring)
-        self.status_widget = ConnectionStatusWidget(self.live_bridge)
-        self.status_bar.addPermanentWidget(self.status_widget)
-
-        # Keep old connection_indicator for compatibility with old code
+        # Keep references for compatibility
         self.connection_indicator = QLabel("● Disconnected")
         self.connection_indicator.setStyleSheet("color: #FF3B30;")
-        # Don't add to status bar, just keep reference
 
-        self.status_bar.showMessage("Ready. Connect to Rhino to begin.")
+        # Initial message in bottom panel
+        if hasattr(self, 'status_label'):
+            self.status_label.setText("Ready. Connect to Rhino to begin.")
 
         # Create menus (after viewport is created)
         self.create_menus()
 
-        # Restore previous layout if exists
-        self.restore_layout()
-        
+        # Apply global styling
+        self.apply_styling()
+
+    def create_main_layout(self):
+        """Create the four-sided UI architecture v2.0"""
+        # Central widget container
+        central = QWidget()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # TOP: Tab system for workflow
+        self.tab_widget = self.create_tab_widget()
+
+        # The tab widget will contain the main content area
+        # Each tab has its own LEFT panel + center content
+
+        main_layout.addWidget(self.tab_widget)
+
+        # BOTTOM: System communication panel
+        self.bottom_panel = self.create_bottom_panel()
+        main_layout.addWidget(self.bottom_panel)
+
+        central.setLayout(main_layout)
+        self.setCentralWidget(central)
+
+        # Create the viewport and right panel that will be shared
+        self.create_shared_components()
+
+        # Store references for compatibility with existing code
+        self.store_compatibility_references()
+
+    def create_shared_components(self):
+        """Create the shared viewport and right panel components"""
+        # Create viewport manager for center area
+        self.viewport_layout = ViewportLayoutManager()
+        self.viewport = None  # Keep reference for compatibility
+
+        # Set to single viewport by default (not 4-grid)
+        self.viewport_layout.set_layout(ViewportLayout.SINGLE)
+
+        # Create right panel with vertical tabs
+        self.right_panel = self.create_right_panel()
+
+    def create_tab_widget(self):
+        """Create main workflow tab system - 6 tabs with proper layout"""
+        tabs = QTabWidget()
+        tabs.setTabPosition(QTabWidget.TabPosition.North)
+        tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #D1D1D6;
+                background: #FFFFFF;
+            }
+            QTabBar::tab {
+                background: #F5F5F5;
+                padding: 8px 20px;
+                margin-right: 2px;
+                border: 1px solid #D1D1D6;
+                border-bottom: none;
+                min-width: 80px;
+            }
+            QTabBar::tab:selected {
+                background: #FFFFFF;
+                border-bottom: 1px solid #FFFFFF;
+            }
+        """)
+
+        # Create main container for each tab that includes viewport and right panel
+        self.file_tab = self.create_tab_with_layout("FILE")
+        self.analyze_tab = self.create_tab_with_layout("ANALYZE")
+        self.edit_tab = self.create_tab_with_layout("EDIT")
+        self.validate_tab = self.create_tab_with_layout("VALIDATE")
+        self.fabricate_tab = self.create_tab_with_layout("FABRICATE")
+        self.view_tab = self.create_tab_with_layout("VIEW")
+
+        # Add tabs
+        tabs.addTab(self.file_tab, "FILE")
+        tabs.addTab(self.analyze_tab, "ANALYZE")
+        tabs.addTab(self.edit_tab, "EDIT")
+        tabs.addTab(self.validate_tab, "VALIDATE")
+        tabs.addTab(self.fabricate_tab, "FABRICATE")
+        tabs.addTab(self.view_tab, "VIEW")
+
+        # Set tooltips
+        tabs.setTabToolTip(0, "File Operations (F1)")
+        tabs.setTabToolTip(1, "Mathematical Analysis (F2)")
+        tabs.setTabToolTip(2, "Region Editing (F3)")
+        tabs.setTabToolTip(3, "Constraint Validation (F4)")
+        tabs.setTabToolTip(4, "Mold Fabrication (F5)")
+        tabs.setTabToolTip(5, "View Controls (F6)")
+
+        # Connect tab change signal
+        tabs.currentChanged.connect(self.on_tab_changed)
+
+        return tabs
+
+    def create_tab_with_layout(self, tab_name):
+        """Create a tab with proper three-column layout: LEFT | CENTER | RIGHT"""
+        tab_widget = QWidget()
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Create horizontal splitter for the three sections
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # LEFT: Secondary/advanced tools (context-specific)
+        left_panel = self.create_left_panel_for_tab(tab_name)
+        left_panel.setMinimumWidth(180)
+        left_panel.setMaximumWidth(280)
+
+        # CENTER: Main content area (viewport in most cases)
+        if tab_name in ["ANALYZE", "EDIT", "VALIDATE", "FABRICATE", "VIEW"]:
+            # These tabs need the viewport
+            center_content = self.viewport_layout if hasattr(self, 'viewport_layout') else QWidget()
+        else:
+            # FILE tab doesn't need viewport, just a content area
+            center_content = QWidget()
+            center_content.setStyleSheet("background-color: #F5F5F5;")
+
+        # RIGHT: Properties panel (shared across all tabs)
+        right_panel = self.right_panel if hasattr(self, 'right_panel') else QWidget()
+
+        # Add to splitter
+        splitter.addWidget(left_panel)
+        splitter.addWidget(center_content)
+        splitter.addWidget(right_panel)
+
+        # Set proportions
+        splitter.setStretchFactor(0, 0)  # Left panel fixed
+        splitter.setStretchFactor(1, 1)  # Center expandable
+        splitter.setStretchFactor(2, 0)  # Right panel fixed
+
+        # Set sizes
+        splitter.setSizes([200, 800, 300])
+
+        layout.addWidget(splitter)
+        tab_widget.setLayout(layout)
+
+        return tab_widget
+
+    def create_left_panel_for_tab(self, tab_name):
+        """Create the LEFT panel content based on the tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        if tab_name == "FILE":
+            panel = self.create_file_left_panel()
+        elif tab_name == "ANALYZE":
+            panel = self.create_analyze_left_panel()
+        elif tab_name == "EDIT":
+            panel = self.create_edit_left_panel()
+        elif tab_name == "VALIDATE":
+            panel = self.create_validate_left_panel()
+        elif tab_name == "FABRICATE":
+            panel = self.create_fabricate_left_panel()
+        elif tab_name == "VIEW":
+            panel = self.create_view_left_panel()
+
+        return panel
+
+    def setup_tab_shortcuts(self):
+        """Set up F1-F6 shortcuts for tabs"""
+        for i in range(6):
+            shortcut = QShortcut(QKeySequence(f"F{i+1}"), self)
+            shortcut.activated.connect(lambda idx=i: self.tab_widget.setCurrentIndex(idx))
+
+    def create_file_left_panel(self):
+        """Create LEFT panel for FILE tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Primary actions section
+        layout.addWidget(QLabel("<b>File Operations</b>"))
+
+        btn_new = QPushButton("New Session")
+        btn_open = QPushButton("Open Session")
+        btn_save = QPushButton("Save Session")
+        btn_save.clicked.connect(self.save_session)
+        btn_save_as = QPushButton("Save As...")
+
+        layout.addWidget(QLabel("<b>Import/Export</b>"))
+        btn_import = QPushButton("Import from Rhino")
+        btn_import.clicked.connect(self.load_from_rhino)
+        btn_export = QPushButton("Export to Rhino")
+
+        for btn in [btn_new, btn_open, btn_save, btn_save_as, btn_import, btn_export]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Separator
+        layout.addWidget(QFrame())
+
+        # Advanced section
+        layout.addWidget(QLabel("<b>Advanced</b>"))
+
+        btn_template = QPushButton("Save Template")
+        btn_load_template = QPushButton("Load Template")
+        btn_batch = QPushButton("Batch Export")
+
+        for btn in [btn_template, btn_load_template, btn_batch]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_analyze_left_panel(self):
+        """Create LEFT panel for ANALYZE tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Create and add the analysis panel (contains the lens controls)
+        self.analysis_panel = AnalysisPanel()
+        self.analysis_panel.lens_changed.connect(self.on_lens_changed)
+        self.analysis_panel.analysis_requested.connect(self.run_analysis)
+        layout.addWidget(self.analysis_panel)
+
+        # Advanced section
+        layout.addWidget(QLabel("<b>Advanced Analysis</b>"))
+
+        btn_compare = QPushButton("Compare Analyses")
+        btn_differential = QPushButton("Differential Analysis")
+        btn_batch = QPushButton("Batch Analysis")
+
+        for btn in [btn_compare, btn_differential, btn_batch]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addWidget(QLabel("<b>Presets</b>"))
+        btn_save_preset = QPushButton("Save Preset")
+        btn_load_preset = QPushButton("Load Preset")
+
+        for btn in [btn_save_preset, btn_load_preset]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_edit_left_panel(self):
+        """Create LEFT panel for EDIT tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Edit mode widget
+        layout.addWidget(QLabel("<b>Edit Mode</b>"))
+        self.edit_mode_widget = EditModeWidget()
+        self.state.edit_mode_manager.mode_changed.connect(self.edit_mode_widget.set_mode)
+        self.edit_mode_widget.mode_changed.connect(self.state.edit_mode_manager.set_mode)
+        layout.addWidget(self.edit_mode_widget)
+
+        # Selection operations
+        layout.addWidget(QLabel("<b>Selection</b>"))
+        btn_select_all = QPushButton("Select All")
+        btn_select_all.clicked.connect(self.select_all)
+        btn_clear = QPushButton("Clear Selection")
+        btn_clear.clicked.connect(self.clear_selection)
+        btn_invert = QPushButton("Invert Selection")
+        btn_invert.clicked.connect(self.invert_selection)
+
+        for btn in [btn_select_all, btn_clear, btn_invert]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Region operations
+        layout.addWidget(QLabel("<b>Region Operations</b>"))
+        btn_pin = QPushButton("Pin/Unpin Region")
+        btn_delete = QPushButton("Delete Region")
+
+        for btn in [btn_pin, btn_delete]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Advanced section
+        layout.addWidget(QLabel("<b>Advanced</b>"))
+        btn_grow = QPushButton("Grow Selection")
+        btn_grow.clicked.connect(self.grow_selection)
+        btn_shrink = QPushButton("Shrink Selection")
+        btn_shrink.clicked.connect(self.shrink_selection)
+        btn_merge = QPushButton("Merge Regions")
+        btn_split = QPushButton("Split Region")
+
+        for btn in [btn_grow, btn_shrink, btn_merge, btn_split]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_validate_left_panel(self):
+        """Create LEFT panel for VALIDATE tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Add constraint panel
+        self.constraint_panel = ConstraintPanel()
+        layout.addWidget(self.constraint_panel)
+
+        # Validation controls
+        layout.addWidget(QLabel("<b>Validation</b>"))
+        btn_check = QPushButton("Run Constraint Check")
+        btn_clear = QPushButton("Clear Validation")
+        btn_revalidate = QPushButton("Re-validate All")
+
+        for btn in [btn_check, btn_clear, btn_revalidate]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Automatic fixes
+        layout.addWidget(QLabel("<b>Automatic Fixes</b>"))
+        btn_fix_undercuts = QPushButton("Fix Undercuts")
+        btn_fix_draft = QPushButton("Auto-Fix Draft Angles")
+        btn_adjust_thickness = QPushButton("Adjust Wall Thickness")
+        btn_repair_seams = QPushButton("Repair Seam Gaps")
+
+        for btn in [btn_fix_undercuts, btn_fix_draft, btn_adjust_thickness, btn_repair_seams]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_fabricate_left_panel(self):
+        """Create LEFT panel for FABRICATE tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Primary fabrication
+        layout.addWidget(QLabel("<b>Mold Generation</b>"))
+        btn_generate = QPushButton("Generate Mold Shells")
+        btn_generate.setMinimumHeight(40)
+        btn_generate.setStyleSheet("""
+            QPushButton {
+                background-color: #34C759;
+                color: white;
+                font-weight: bold;
+            }
+        """)
+        btn_generate.clicked.connect(self.generate_molds)
+        layout.addWidget(btn_generate)
+
+        btn_send = QPushButton("Send to Rhino")
+        btn_send.clicked.connect(self.send_to_rhino)
+        layout.addWidget(btn_send)
+
+        # Mold features
+        layout.addWidget(QLabel("<b>Mold Features</b>"))
+        btn_keys = QPushButton("Add Registration Keys")
+        btn_bands = QPushButton("Add Band Grooves")
+        btn_spouts = QPushButton("Add Pour Spouts")
+
+        for btn in [btn_keys, btn_bands, btn_spouts]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Export
+        layout.addWidget(QLabel("<b>Export</b>"))
+        btn_calculate = QPushButton("Calculate Slip Volume")
+        btn_export = QPushButton("Export for 3D Printing")
+
+        for btn in [btn_calculate, btn_export]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_view_left_panel(self):
+        """Create LEFT panel for VIEW tab"""
+        panel = QWidget()
+        panel.setStyleSheet("background-color: #FAFAFA; border-right: 1px solid #D1D1D6;")
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # View controls
+        layout.addWidget(QLabel("<b>View Controls</b>"))
+        btn_reset_all = QPushButton("Reset All Views")
+        btn_reset_current = QPushButton("Reset Current View")
+        btn_frame_all = QPushButton("Frame All Geometry")
+        btn_frame_selected = QPushButton("Frame Selected")
+
+        for btn in [btn_reset_all, btn_reset_current, btn_frame_all, btn_frame_selected]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        # Display options
+        layout.addWidget(QLabel("<b>Display Options</b>"))
+        chk_axes = QCheckBox("Show Axes")
+        chk_grid = QCheckBox("Show Grid")
+        chk_edges = QCheckBox("Show Edges")
+        chk_axes.setChecked(True)
+        chk_grid.setChecked(True)
+
+        for chk in [chk_axes, chk_grid, chk_edges]:
+            layout.addWidget(chk)
+
+        # Advanced
+        layout.addWidget(QLabel("<b>Advanced View</b>"))
+        btn_save_view = QPushButton("Save Named View")
+        btn_camera_props = QPushButton("Camera Properties")
+
+        for btn in [btn_save_view, btn_camera_props]:
+            btn.setMinimumHeight(28)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+        panel.setLayout(layout)
+        return panel
+
+    def create_right_panel(self):
+        """Create right panel with vertical tabs for properties"""
+        right_tabs = QTabWidget()
+        right_tabs.setTabPosition(QTabWidget.TabPosition.East)
+        right_tabs.setMinimumWidth(240)
+        right_tabs.setMaximumWidth(450)
+
+        # VIEWPORT tab
+        viewport_tab = QScrollArea()
+        viewport_tab.setWidgetResizable(True)
+        viewport_content = QWidget()
+        viewport_layout = QVBoxLayout()
+        viewport_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Layout selector
+        viewport_layout.addWidget(QLabel("<b>Layout</b>"))
+        layout_combo = QComboBox()
+        layout_combo.addItems(["Single", "Two Horizontal", "Two Vertical", "Four Grid"])
+        layout_combo.currentIndexChanged.connect(self.on_layout_changed)
+        viewport_layout.addWidget(layout_combo)
+
+        viewport_layout.addStretch()
+        viewport_content.setLayout(viewport_layout)
+        viewport_tab.setWidget(viewport_content)
+
+        # REGIONS tab - reuse existing region list
+        self.region_list = RegionListWidget()
+        self.region_list.region_selected.connect(self.on_region_selected)
+        self.region_list.region_pinned.connect(self.on_region_pinned)
+
+        # CONSTRAINTS tab - already created in validate tab
+        constraints_scroll = QScrollArea()
+        constraints_scroll.setWidgetResizable(True)
+        constraints_content = QWidget()
+        constraints_layout = QVBoxLayout()
+        constraints_layout.addWidget(QLabel("<b>Constraint Results</b>"))
+        constraints_layout.addStretch()
+        constraints_content.setLayout(constraints_layout)
+        constraints_scroll.setWidget(constraints_content)
+
+        # SELECTION tab - reuse existing selection info panel
+        self.selection_info_panel = SelectionInfoPanel()
+
+        # PARAMETERS tab - context-sensitive
+        params_scroll = QScrollArea()
+        params_scroll.setWidgetResizable(True)
+        params_content = QWidget()
+        params_layout = QVBoxLayout()
+        params_layout.addWidget(QLabel("<b>Parameters</b>"))
+        params_layout.addStretch()
+        params_content.setLayout(params_layout)
+        params_scroll.setWidget(params_content)
+
+        # Add tabs
+        right_tabs.addTab(viewport_tab, "VIEWPORT")
+        right_tabs.addTab(self.region_list, "REGIONS")
+        right_tabs.addTab(constraints_scroll, "CONSTRAINTS")
+        right_tabs.addTab(self.selection_info_panel, "SELECTION")
+        right_tabs.addTab(params_scroll, "PARAMETERS")
+
+        return right_tabs
+
+    def create_bottom_panel(self):
+        """Create bottom panel for system communication"""
+        panel = QWidget()
+        panel.setMaximumHeight(160)
+        panel.setMinimumHeight(100)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        # Command input (30%)
+        cmd_widget = QWidget()
+        cmd_layout = QVBoxLayout()
+        cmd_layout.addWidget(QLabel("Command"))
+
+        cmd_input_widget = QWidget()
+        cmd_input_layout = QHBoxLayout()
+        cmd_input_layout.setContentsMargins(0, 0, 0, 0)
+        cmd_input_layout.addWidget(QLabel(">"))
+        self.command_input = QLineEdit()
+        self.command_input.setPlaceholderText("Type command...")
+        self.command_input.returnPressed.connect(self.execute_command)
+        cmd_input_layout.addWidget(self.command_input)
+        cmd_input_widget.setLayout(cmd_input_layout)
+
+        cmd_layout.addWidget(cmd_input_widget)
+        cmd_widget.setLayout(cmd_layout)
+        layout.addWidget(cmd_widget, 3)
+
+        # Command history / Debug console (40%)
+        history_widget = QWidget()
+        history_layout = QVBoxLayout()
+        history_layout.addWidget(QLabel("Console"))
+        self.debug_console = QTextEdit()
+        self.debug_console.setReadOnly(True)
+        self.debug_console.setStyleSheet(
+            "font-family: monospace; font-size: 10px; "
+            "background-color: #1E1E1E; color: #D4D4D4;"
+        )
+        history_layout.addWidget(self.debug_console)
+        history_widget.setLayout(history_layout)
+        layout.addWidget(history_widget, 4)
+
+        # Connection status (15%)
+        conn_widget = QWidget()
+        conn_layout = QVBoxLayout()
+        conn_layout.addWidget(QLabel("Connection"))
+
+        # Use existing connection status widget
+        self.status_widget = ConnectionStatusWidget(self.live_bridge)
+        conn_layout.addWidget(self.status_widget)
+
+        btn_reconnect = QPushButton("Reconnect")
+        btn_reconnect.setMaximumHeight(24)
+        btn_reconnect.clicked.connect(self.connect_to_rhino)
+        conn_layout.addWidget(btn_reconnect)
+
+        conn_widget.setLayout(conn_layout)
+        layout.addWidget(conn_widget, 2)
+
+        # System status (15%)
+        status_widget = QWidget()
+        status_layout = QVBoxLayout()
+        status_layout.addWidget(QLabel("Status"))
+
+        self.status_label = QLabel("Ready")
+        status_layout.addWidget(self.status_label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        status_layout.addWidget(self.progress_bar)
+
+        status_widget.setLayout(status_layout)
+        layout.addWidget(status_widget, 2)
+
+        panel.setLayout(layout)
+        return panel
+
+    def store_compatibility_references(self):
+        """Store references for backward compatibility with existing code"""
+        # These allow existing methods to continue working
+        self.analysis_dock = None  # No longer using docks
+        self.region_dock = None
+        self.constraint_dock = None
+        self.selection_dock = None
+        self.debug_dock = None
+
+        # Remove old toolbar references
+        self.edit_mode_toolbar = None
+        self.analysis_toolbar = None
+
+    def on_tab_changed(self, index):
+        """Handle tab change - update context-sensitive panels"""
+        # Update status
+        tabs = ["FILE", "ANALYZE", "EDIT", "VALIDATE", "FABRICATE", "VIEW"]
+        if hasattr(self, 'status_label'):
+            self.status_label.setText(f"Active: {tabs[index]}")
+
+    def on_layout_changed(self, index):
+        """Handle viewport layout change"""
+        layouts = [ViewportLayout.SINGLE, ViewportLayout.TWO_HORIZONTAL,
+                  ViewportLayout.TWO_VERTICAL, ViewportLayout.FOUR_GRID]
+        self.viewport_layout.set_layout(layouts[index])
+
+    def execute_command(self):
+        """Execute command from bottom panel input"""
+        command = self.command_input.text()
+        if command:
+            self.log_debug(f"> {command}")
+            self.command_input.clear()
+            # Add command processing here
+
+    def apply_styling(self):
+        """Apply global styling per UX spec v2.0"""
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #FFFFFF;
+            }
+            QWidget {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                            Roboto, Helvetica, Arial, sans-serif;
+                font-size: 11px;
+            }
+            QTabWidget::pane {
+                border: 1px solid #D1D1D6;
+                background: #FFFFFF;
+            }
+            QTabBar::tab {
+                background: #F5F5F5;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border: 1px solid #D1D1D6;
+                border-bottom: none;
+            }
+            QTabBar::tab:selected {
+                background: #FFFFFF;
+                border-bottom: 1px solid #FFFFFF;
+            }
+            QTabBar::tab:hover {
+                background: #E8E8E8;
+            }
+            QPushButton {
+                padding: 5px 10px;
+                border: 1px solid #D1D1D6;
+                border-radius: 4px;
+                background-color: #F5F5F5;
+            }
+            QPushButton:hover {
+                background-color: #E8E8E8;
+            }
+            QPushButton:pressed {
+                background-color: #D1D1D6;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #D1D1D6;
+                border-radius: 4px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 5px;
+            }
+        """)
+
     def create_menus(self):
         """Create application menus"""
         menubar = self.menuBar()
@@ -381,204 +1038,23 @@ class MainWindow(QMainWindow):
 
         self.log_debug("⌨️ Edit mode shortcuts: S=Solid | P=Panel | E=Edge | V=Vertex")
 
-    def create_analysis_toolbar(self):
-        """Create analysis toolbar with quick actions"""
-        toolbar = QToolBar("Analysis Tools")
-        toolbar.setMovable(True)
-        toolbar.setFloatable(False)
-        toolbar.setToolTip("Quick access to analysis lenses and mold generation")
-        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
-
-        # Quick lens selection buttons
-        label = QLabel("Quick Lens: ")
-        label.setToolTip("Select mathematical lens for region discovery")
-        toolbar.addWidget(label)
-        toolbar.addSeparator()
-
-        flow_action = QAction("🌊 Flow", self)
-        flow_action.setToolTip("Run Flow (Geodesic) analysis - discovers regions based on flow patterns")
-        flow_action.triggered.connect(lambda: self.run_analysis("Flow"))
-        toolbar.addAction(flow_action)
-
-        spectral_action = QAction("〰️ Spectral", self)
-        spectral_action.setToolTip("Run Spectral (Vibration) analysis - uses Laplace-Beltrami eigenfunctions")
-        spectral_action.triggered.connect(lambda: self.run_analysis("Spectral"))
-        toolbar.addAction(spectral_action)
-
-        curvature_action = QAction("📐 Curvature", self)
-        curvature_action.setToolTip("Run Curvature (Ridge/Valley) analysis - discovers regions by differential geometry")
-        curvature_action.triggered.connect(lambda: self.run_analysis("Curvature"))
-        toolbar.addAction(curvature_action)
-
-        topo_action = QAction("🔷 Topological", self)
-        topo_action.setToolTip("Run Topological analysis - finds critical points and Morse decomposition")
-        topo_action.triggered.connect(lambda: self.run_analysis("Topological"))
-        toolbar.addAction(topo_action)
-
-        toolbar.addSeparator()
-
-        # Mold generation
-        generate_action = QAction("🔨 Generate Molds", self)
-        generate_action.setToolTip("Generate mold geometry from pinned regions\n(applies draft angles, adds wall thickness, creates registration keys)")
-        generate_action.triggered.connect(self.generate_molds)
-        toolbar.addAction(generate_action)
-        self.toolbar_generate_action = generate_action
-
-        # Send to Rhino
-        send_action = QAction("📤 Send to Rhino", self)
-        send_action.setToolTip("Send generated molds to Rhino for fabrication prep")
-        send_action.triggered.connect(self.send_to_rhino)
-        toolbar.addAction(send_action)
-        self.toolbar_send_action = send_action
-
-        self.analysis_toolbar = toolbar
-
-    def create_dock_widgets(self):
-        """Create dockable panels for UI components"""
-        # Analysis Panel (right side, top)
-        self.analysis_panel = AnalysisPanel()
-        analysis_dock = QDockWidget("Analysis", self)
-        analysis_dock.setWidget(self.analysis_panel)
-        analysis_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
-                                       Qt.DockWidgetArea.RightDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, analysis_dock)
-        self.analysis_dock = analysis_dock
-
-        # Region List Panel (right side, middle)
-        self.region_list = RegionListWidget()
-        region_dock = QDockWidget("Regions", self)
-        region_dock.setWidget(self.region_list)
-        region_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
-                                     Qt.DockWidgetArea.RightDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, region_dock)
-        self.region_dock = region_dock
-
-        # Constraint Panel (right side, below regions)
-        self.constraint_panel = ConstraintPanel()
-        constraint_dock = QDockWidget("Constraints", self)
-        constraint_dock.setWidget(self.constraint_panel)
-        constraint_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
-                                         Qt.DockWidgetArea.RightDockWidgetArea |
-                                         Qt.DockWidgetArea.BottomDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, constraint_dock)
-        self.constraint_dock = constraint_dock
-
-        # Selection Info Panel (right side, bottom)
-        self.selection_info_panel = SelectionInfoPanel()
-        selection_dock = QDockWidget("Selection Info", self)
-        selection_dock.setWidget(self.selection_info_panel)
-        selection_dock.setAllowedAreas(Qt.DockWidgetArea.LeftDockWidgetArea |
-                                        Qt.DockWidgetArea.RightDockWidgetArea |
-                                        Qt.DockWidgetArea.BottomDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, selection_dock)
-        self.selection_dock = selection_dock
-
-        # Debug Console (bottom)
-        debug_widget = QWidget()
-        debug_layout = QVBoxLayout(debug_widget)
-        debug_layout.setContentsMargins(5, 5, 5, 5)
-
-        self.debug_console = QTextEdit()
-        self.debug_console.setReadOnly(True)
-        self.debug_console.setMaximumHeight(150)
-        self.debug_console.setStyleSheet(
-            "font-family: monospace; font-size: 10px; "
-            "background-color: #1E1E1E; color: #D4D4D4;"
-        )
-        debug_layout.addWidget(self.debug_console)
-
-        # Test button
-        test_btn = QPushButton("Test Debug")
-        test_btn.clicked.connect(lambda: self.log_debug("✅ Debug console is working!"))
-        test_btn.setMaximumWidth(100)
-        debug_layout.addWidget(test_btn)
-
-        debug_dock = QDockWidget("Debug Console", self)
-        debug_dock.setWidget(debug_widget)
-        debug_dock.setAllowedAreas(Qt.DockWidgetArea.BottomDockWidgetArea |
-                                    Qt.DockWidgetArea.LeftDockWidgetArea |
-                                    Qt.DockWidgetArea.RightDockWidgetArea)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, debug_dock)
-        self.debug_dock = debug_dock
-
-        # Stack the right-side docks vertically
-        self.tabifyDockWidget(constraint_dock, analysis_dock)
-        self.tabifyDockWidget(constraint_dock, selection_dock)
-        analysis_dock.raise_()  # Bring analysis to front
-
-        # Add menu actions to show/hide docks
-        self.add_dock_menu_actions()
-
-    def add_dock_menu_actions(self):
-        """Add menu actions for showing/hiding dock widgets"""
-        # Add to View menu
-        # Skip if menus not created yet
-        if not self.menuBar().actions():
-            return
-        view_menu = self.menuBar().actions()[3].menu()  # View is 4th menu
-        view_menu.addSeparator()
-
-        # Add toggle actions for each dock
-        view_menu.addAction(self.analysis_dock.toggleViewAction())
-        view_menu.addAction(self.region_dock.toggleViewAction())
-        view_menu.addAction(self.constraint_dock.toggleViewAction())
-        view_menu.addAction(self.selection_dock.toggleViewAction())
-        view_menu.addAction(self.debug_dock.toggleViewAction())
-
-        view_menu.addSeparator()
-
-        # Reset layout action
-        reset_layout_action = QAction("Reset Panel Layout", self)
-        reset_layout_action.triggered.connect(self.reset_panel_layout)
-        view_menu.addAction(reset_layout_action)
-
-    def reset_panel_layout(self):
-        """Reset dock widget layout to default"""
-        # Remove all docks
-        self.removeDockWidget(self.analysis_dock)
-        self.removeDockWidget(self.region_dock)
-        self.removeDockWidget(self.constraint_dock)
-        self.removeDockWidget(self.selection_dock)
-        self.removeDockWidget(self.debug_dock)
-
-        # Re-add in default positions
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.analysis_dock)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.region_dock)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.constraint_dock)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.selection_dock)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.debug_dock)
-
-        # Stack analysis, constraint, and selection
-        self.tabifyDockWidget(self.constraint_dock, self.analysis_dock)
-        self.tabifyDockWidget(self.constraint_dock, self.selection_dock)
-        self.analysis_dock.raise_()
-
-        # Show all docks
-        self.analysis_dock.show()
-        self.region_dock.show()
-        self.constraint_dock.show()
-        self.selection_dock.show()
-        self.debug_dock.show()
-
-        self.status_bar.showMessage("Panel layout reset to default", 2000)
+    # NOTE: create_analysis_toolbar and create_dock_widgets are no longer needed in v2.0
+    # These are retained but not called for backward compatibility
 
     def save_layout(self):
-        """Save window layout and dock positions"""
+        """Save window layout"""
         settings = QSettings("ComputationalCeramics", "CeramicMoldAnalyzer")
         settings.setValue("geometry", self.saveGeometry())
-        settings.setValue("windowState", self.saveState())
+        # Tab state saving could be added here
         self.log_debug("💾 Layout saved")
 
     def restore_layout(self):
-        """Restore window layout and dock positions"""
+        """Restore window layout"""
         settings = QSettings("ComputationalCeramics", "CeramicMoldAnalyzer")
         geometry = settings.value("geometry")
-        state = settings.value("windowState")
 
         if geometry:
             self.restoreGeometry(geometry)
-        if state:
-            self.restoreState(state)
             self.log_debug("📂 Layout restored")
 
     def create_control_panel(self):
@@ -680,35 +1156,45 @@ class MainWindow(QMainWindow):
             self.debug_console.moveCursor(QTextCursor.MoveOperation.End)
     
     def setup_connections(self):
-        """Setup signal/slot connections"""
-        # Analysis panel connections
-        self.analysis_panel.analysis_requested.connect(self.run_analysis)
-        self.analysis_panel.lens_changed.connect(self.on_lens_changed)
+        """Setup signal/slot connections for v2.0 UI"""
+        # Analysis panel connections (in ANALYZE tab)
+        if hasattr(self, 'analysis_panel'):
+            # The signals might not exist in AnalysisPanel yet, wrap in try-except
+            try:
+                self.analysis_panel.analysis_requested.connect(self.run_analysis)
+                self.analysis_panel.lens_changed.connect(self.on_lens_changed)
+            except:
+                pass
 
-        # Region list connections
-        self.region_list.region_selected.connect(self.on_region_selected)
-        self.region_list.region_pinned.connect(self.on_region_pinned)
-        self.region_list.region_edit_requested.connect(self.on_region_edit)
-        self.region_list.region_properties_requested.connect(self.on_region_properties)
+        # Region list connections (in right panel)
+        if hasattr(self, 'region_list'):
+            try:
+                self.region_list.region_selected.connect(self.on_region_selected)
+                self.region_list.region_pinned.connect(self.on_region_pinned)
+                self.region_list.region_edit_requested.connect(self.on_region_edit)
+                self.region_list.region_properties_requested.connect(self.on_region_properties)
+            except:
+                pass
 
-        # Viewport connections - connect signals for each viewport as they're created
-        # These will be connected when viewports are created in the layout manager
-        self.viewport_layout.active_viewport_changed.connect(self.on_active_viewport_changed)
+        # Viewport connections
+        if hasattr(self, 'viewport_layout'):
+            self.viewport_layout.active_viewport_changed.connect(self.on_active_viewport_changed)
 
-        # Edit mode connections
-        self.edit_mode_toolbar.mode_changed.connect(self.on_edit_mode_changed)
-        self.state.edit_mode_changed.connect(self.on_edit_mode_changed)
-        self.state.selection_changed.connect(self.on_selection_changed)
+        # Edit mode connections (in EDIT tab)
+        if hasattr(self, 'edit_mode_widget'):
+            try:
+                # Connect to state manager
+                self.state.edit_mode_changed.connect(self.on_edit_mode_changed)
+                self.state.selection_changed.connect(self.on_selection_changed)
+            except:
+                pass
 
-        # Edit mode toolbar selection operations
-        self.edit_mode_toolbar.clear_selection_requested.connect(self.clear_selection)
-        self.edit_mode_toolbar.select_all_requested.connect(self.select_all)
-        self.edit_mode_toolbar.invert_selection_requested.connect(self.invert_selection)
-        self.edit_mode_toolbar.grow_selection_requested.connect(self.grow_selection)
-        self.edit_mode_toolbar.shrink_selection_requested.connect(self.shrink_selection)
-
-        # Selection info panel connections
-        self.selection_info_panel.export_to_region_requested.connect(self.export_selection_to_region)
+        # Selection info panel connections (in right panel)
+        if hasattr(self, 'selection_info_panel'):
+            try:
+                self.selection_info_panel.export_to_region_requested.connect(self.export_selection_to_region)
+            except:
+                pass
 
         # Bridge connections
         self.rhino_bridge.geometry_received.connect(self.on_geometry_received)

@@ -14,6 +14,11 @@ from app.utils.error_handling import get_logger, handle_exceptions
 logger = get_logger(__name__)
 
 
+class UnboundedKnot(ValueError):
+    """Exception raised when knot vector is unbounded (contains infinite values)."""
+    pass
+
+
 def validate_nurbs_data(data: Dict) -> tuple[bool, Optional[str]]:
     """
     Validate NURBS data before export.

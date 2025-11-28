@@ -1,270 +1,338 @@
-import { useState } from 'react';
-import { Button } from './ui/button';
-import { 
-  RotateCcwIcon, 
-  MaximizeIcon,
-  RulerIcon,
-  EyeIcon,
-  BoxIcon,
-  GridIcon,
-  ScanIcon
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu';
-import type { Viewport as ViewportType, EditMode } from '../App';
+import React, { useState, useRef } from 'react';
+import { Maximize2, Grid3x3 } from 'lucide-react';
+
+type Theme = 'light' | 'dark';
+type ViewportLayout = 'single' | 'two-horizontal' | 'two-vertical' | 'four-grid';
 
 interface ViewportProps {
-  viewport: ViewportType;
-  editMode: EditMode;
-  selectedRegion: number | null;
-  onRegionSelect: (region: number | null) => void;
-  onViewportChange: (viewport: ViewportType) => void;
+  theme: Theme;
 }
 
-export function Viewport({ viewport, editMode, selectedRegion, onRegionSelect, onViewportChange }: ViewportProps) {
-  const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
-  const [hoveredEdge, setHoveredEdge] = useState<number | null>(null);
-  const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
-  
-  const viewTypeLabels = {
-    perspective: 'Perspective',
-    top: 'Top',
-    front: 'Front',
-    right: 'Right',
-    isometric: 'Isometric',
-    axonometric: 'Axonometric'
+export function Viewport({ theme }: ViewportProps) {
+  const [layout, setLayout] = useState<ViewportLayout>('four-grid');
+  const [maximizedView, setMaximizedView] = useState<string | null>(null);
+  const isDark = theme === 'dark';
+
+  const handleViewDoubleClick = (viewLabel: string) => {
+    if (maximizedView === viewLabel) {
+      // Restore to four-grid
+      setMaximizedView(null);
+      setLayout('four-grid');
+    } else {
+      // Maximize this view
+      setMaximizedView(viewLabel);
+      setLayout('single');
+    }
   };
 
-  // Mock regions for visualization
-  const regions = [
-    { id: 1, color: 'rgb(147, 197, 253)', path: 'M150,100 Q200,80 250,100 L250,250 Q200,270 150,250 Z', label: 'Region 1' },
-    { id: 2, color: 'rgb(252, 165, 165)', path: 'M250,100 Q300,80 350,100 L350,250 Q300,270 250,250 Z', label: 'Region 2' },
-    { id: 3, color: 'rgb(196, 181, 253)', path: 'M350,100 Q400,80 450,100 L450,250 Q400,270 350,250 Z', label: 'Region 3' },
-    { id: 4, color: 'rgb(134, 239, 172)', path: 'M150,250 Q200,230 250,250 L250,400 Q200,420 150,400 Z', label: 'Region 4' },
-    { id: 5, color: 'rgb(253, 224, 71)', path: 'M250,250 Q300,230 350,250 L350,400 Q300,420 250,400 Z', label: 'Region 5' },
-  ];
+  return (
+    <div className={`flex-1 flex flex-col ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+      {/* Viewport Area - Maximized */}
+      <div className="flex-1 p-2">
+        {maximizedView ? (
+          <SingleView theme={theme} viewLabel={maximizedView} onDoubleClick={handleViewDoubleClick} />
+        ) : layout === 'single' ? (
+          <SingleView theme={theme} onDoubleClick={handleViewDoubleClick} />
+        ) : layout === 'two-horizontal' ? (
+          <TwoHorizontalView theme={theme} onDoubleClick={handleViewDoubleClick} />
+        ) : layout === 'two-vertical' ? (
+          <TwoVerticalView theme={theme} onDoubleClick={handleViewDoubleClick} />
+        ) : (
+          <FourGridView theme={theme} onDoubleClick={handleViewDoubleClick} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SingleView({ theme, viewLabel, onDoubleClick }: { theme: Theme; viewLabel?: string; onDoubleClick?: (label: string) => void }) {
+  const label = viewLabel || "Perspective";
+  return (
+    <div className="w-full h-full">
+      <ViewportPanel label={label} theme={theme} onDoubleClick={onDoubleClick} />
+    </div>
+  );
+}
+
+function TwoHorizontalView({ theme, onDoubleClick }: { theme: Theme; onDoubleClick?: (label: string) => void }) {
+  const [topHeight, setTopHeight] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDark = theme === 'dark';
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = topHeight;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerHeight = containerRef.current.clientHeight;
+      const deltaY = moveEvent.clientY - startY;
+      const deltaPercent = (deltaY / containerHeight) * 100;
+      const newHeight = Math.min(Math.max(startHeight + deltaPercent, 10), 90);
+      setTopHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
 
   return (
-    <div className="flex-1 bg-[#fafafa] dark:bg-[#1a1a1a] relative">
-      {/* Viewport Controls Overlay */}
-      <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
-        <div className="bg-card border border-border rounded-lg shadow-sm p-1 flex flex-col gap-1">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <RotateCcwIcon className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <MaximizeIcon className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <RulerIcon className="size-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-            <EyeIcon className="size-3.5" />
-          </Button>
-        </div>
+    <div ref={containerRef} className="w-full h-full flex flex-col">
+      <div style={{ height: `${topHeight}%` }}>
+        <ViewportPanel label="Top View" theme={theme} onDoubleClick={onDoubleClick} />
       </div>
-
-      {/* View Type and Display Mode Controls */}
-      <div className="absolute top-3 right-3 z-10 flex gap-2">
-        {/* View Type Selector */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 bg-card shadow-sm">
-              <span className="text-xs">{viewTypeLabels[viewport.viewType]}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'perspective' })}>
-              Perspective
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'top' })}>
-              Top
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'front' })}>
-              Front
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'right' })}>
-              Right
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'isometric' })}>
-              Isometric
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onViewportChange({ ...viewport, viewType: 'axonometric' })}>
-              Axonometric
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Display Mode Selector */}
-        <div className="bg-card border border-border rounded-lg shadow-sm p-0.5 flex gap-0.5">
-          <Button 
-            variant={viewport.displayMode === 'solid' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="h-6 w-6 p-0"
-            onClick={() => onViewportChange({ ...viewport, displayMode: 'solid' })}
-          >
-            <BoxIcon className="size-3.5" />
-          </Button>
-          <Button 
-            variant={viewport.displayMode === 'wireframe' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="h-6 w-6 p-0"
-            onClick={() => onViewportChange({ ...viewport, displayMode: 'wireframe' })}
-          >
-            <GridIcon className="size-3.5" />
-          </Button>
-          <Button 
-            variant={viewport.displayMode === 'xray' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="h-6 w-6 p-0"
-            onClick={() => onViewportChange({ ...viewport, displayMode: 'xray' })}
-          >
-            <ScanIcon className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* 3D Visualization (Mock) */}
-      <div className="w-full h-full flex items-center justify-center">
-        <svg 
-          viewBox="0 0 600 500" 
-          className="w-full h-full max-w-3xl max-h-[700px]"
-          style={{ filter: 'drop-shadow(0 10px 30px rgba(0, 0, 0, 0.15))' }}
-        >
-          {/* Seam lines / Edges (emphasized as per design philosophy) */}
-          <g className="seam-lines">
-            {[
-              { id: 1, x1: 250, y1: 100, x2: 250, y2: 400 },
-              { id: 2, x1: 350, y1: 100, x2: 350, y2: 400 },
-              { id: 3, x1: 150, y1: 250, x2: 450, y2: 250 }
-            ].map((edge) => (
-              <line
-                key={edge.id}
-                x1={edge.x1}
-                y1={edge.y1}
-                x2={edge.x2}
-                y2={edge.y2}
-                stroke={
-                  editMode === 'edge' && hoveredEdge === edge.id 
-                    ? 'rgb(59, 130, 246)' 
-                    : 'rgb(100, 116, 139)'
-                }
-                strokeWidth={
-                  editMode === 'edge' && hoveredEdge === edge.id ? 4 : 2.5
-                }
-                strokeDasharray="5,5"
-                opacity={editMode === 'edge' ? 0.8 : 0.6}
-                className={editMode === 'edge' ? 'cursor-pointer transition-all' : ''}
-                onMouseEnter={() => editMode === 'edge' && setHoveredEdge(edge.id)}
-                onMouseLeave={() => editMode === 'edge' && setHoveredEdge(null)}
-              />
-            ))}
-          </g>
-
-          {/* Vertices (shown in vertex edit mode) */}
-          {editMode === 'vertex' && (
-            <g className="vertices">
-              {[
-                { id: 1, x: 250, y: 100 },
-                { id: 2, x: 350, y: 100 },
-                { id: 3, x: 450, y: 100 },
-                { id: 4, x: 150, y: 250 },
-                { id: 5, x: 250, y: 250 },
-                { id: 6, x: 350, y: 250 },
-                { id: 7, x: 450, y: 250 },
-                { id: 8, x: 250, y: 400 },
-                { id: 9, x: 350, y: 400 }
-              ].map((vertex) => (
-                <circle
-                  key={vertex.id}
-                  cx={vertex.x}
-                  cy={vertex.y}
-                  r={hoveredVertex === vertex.id ? 6 : 4}
-                  fill={hoveredVertex === vertex.id ? 'rgb(59, 130, 246)' : 'rgb(100, 116, 139)'}
-                  stroke="white"
-                  strokeWidth="2"
-                  className="cursor-pointer transition-all"
-                  onMouseEnter={() => setHoveredVertex(vertex.id)}
-                  onMouseLeave={() => setHoveredVertex(null)}
-                />
-              ))}
-            </g>
-          )}
-
-          {/* Regions (panels) */}
-          {(editMode === 'panel' || editMode === 'solid') && regions.map((region) => (
-            <g key={region.id}>
-              <path
-                d={region.path}
-                fill={region.color}
-                opacity={
-                  selectedRegion === region.id ? 0.9 :
-                  hoveredRegion === region.id ? 0.7 :
-                  0.5
-                }
-                stroke={selectedRegion === region.id ? 'rgb(59, 130, 246)' : 'white'}
-                strokeWidth={selectedRegion === region.id ? 3 : 1}
-                className={editMode === 'panel' ? 'cursor-pointer transition-all duration-200' : ''}
-                onMouseEnter={() => editMode === 'panel' && setHoveredRegion(region.id)}
-                onMouseLeave={() => editMode === 'panel' && setHoveredRegion(null)}
-                onClick={() => editMode === 'panel' && onRegionSelect(region.id)}
-              />
-              {(hoveredRegion === region.id || selectedRegion === region.id) && editMode === 'panel' && (
-                <text
-                  x={region.id <= 3 ? 150 + (region.id - 1) * 100 + 50 : 150 + (region.id - 4) * 100 + 50}
-                  y={region.id <= 3 ? 175 : 325}
-                  textAnchor="middle"
-                  fill="currentColor"
-                  className="text-xs pointer-events-none"
-                >
-                  {region.label}
-                </text>
-              )}
-            </g>
-          ))}
-        </svg>
-      </div>
-
-      {/* Grid Overlay for context */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-5"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)',
-          backgroundSize: '50px 50px'
-        }}
+      <div
+        onMouseDown={handleMouseDown}
+        className={`h-0.5 cursor-row-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+        style={{ marginTop: '-4px', marginBottom: '-4px', paddingTop: '4px', paddingBottom: '4px' }}
       />
+      <div style={{ height: `${100 - topHeight}%` }}>
+        <ViewportPanel label="Perspective" theme={theme} onDoubleClick={onDoubleClick} />
+      </div>
+    </div>
+  );
+}
 
-      {/* Edit Mode Context Actions */}
-      {editMode !== 'solid' && (
-        <div className="absolute bottom-3 left-3 bg-card border border-border rounded-lg shadow-sm p-2 flex gap-1">
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            <RotateCcwIcon className="size-3 mr-1" />
-            Reanalyze
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            Subdivide
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs">
-            Pin
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive">
-            Delete
-          </Button>
+function TwoVerticalView({ theme, onDoubleClick }: { theme: Theme; onDoubleClick?: (label: string) => void }) {
+  const [leftWidth, setLeftWidth] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDark = theme === 'dark';
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = leftWidth;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      const deltaX = moveEvent.clientX - startX;
+      const deltaPercent = (deltaX / containerWidth) * 100;
+      const newWidth = Math.min(Math.max(startWidth + deltaPercent, 10), 90);
+      setLeftWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div ref={containerRef} className="w-full h-full flex">
+      <div style={{ width: `${leftWidth}%` }}>
+        <ViewportPanel label="Front View" theme={theme} onDoubleClick={onDoubleClick} />
+      </div>
+      <div
+        onMouseDown={handleMouseDown}
+        className={`w-0.5 cursor-col-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+        style={{ marginLeft: '-4px', marginRight: '-4px', paddingLeft: '4px', paddingRight: '4px' }}
+      />
+      <div style={{ width: `${100 - leftWidth}%` }}>
+        <ViewportPanel label="Perspective" theme={theme} onDoubleClick={onDoubleClick} />
+      </div>
+    </div>
+  );
+}
+
+function FourGridView({ theme, onDoubleClick }: { theme: Theme; onDoubleClick?: (label: string) => void }) {
+  const [horizontalSplit, setHorizontalSplit] = useState(50);
+  const [verticalSplit, setVerticalSplit] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isDark = theme === 'dark';
+
+  const handleHorizontalMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = horizontalSplit;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      const deltaX = moveEvent.clientX - startX;
+      const deltaPercent = (deltaX / containerWidth) * 100;
+      const newWidth = Math.min(Math.max(startWidth + deltaPercent, 10), 90);
+      setHorizontalSplit(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleVerticalMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startHeight = verticalSplit;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerHeight = containerRef.current.clientHeight;
+      const deltaY = moveEvent.clientY - startY;
+      const deltaPercent = (deltaY / containerHeight) * 100;
+      const newHeight = Math.min(Math.max(startHeight + deltaPercent, 10), 90);
+      setVerticalSplit(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleBothMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startHorizontal = horizontalSplit;
+    const startVertical = verticalSplit;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      const deltaPercentX = (deltaX / containerWidth) * 100;
+      const deltaPercentY = (deltaY / containerHeight) * 100;
+      
+      const newHorizontal = Math.min(Math.max(startHorizontal + deltaPercentX, 10), 90);
+      const newVertical = Math.min(Math.max(startVertical + deltaPercentY, 10), 90);
+      
+      setHorizontalSplit(newHorizontal);
+      setVerticalSplit(newVertical);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  return (
+    <div ref={containerRef} className="w-full h-full flex flex-col">
+      <div style={{ height: `${verticalSplit}%` }} className="flex">
+        <div style={{ width: `${horizontalSplit}%` }}>
+          <ViewportPanel label="Top View" theme={theme} onDoubleClick={onDoubleClick} />
         </div>
-      )}
+        <div
+          onMouseDown={handleHorizontalMouseDown}
+          className={`w-0.5 cursor-col-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+          style={{ marginLeft: '-4px', marginRight: '-4px', paddingLeft: '4px', paddingRight: '4px' }}
+        />
+        <div style={{ width: `${100 - horizontalSplit}%` }}>
+          <ViewportPanel label="Perspective" theme={theme} onDoubleClick={onDoubleClick} />
+        </div>
+      </div>
+      <div className="flex relative" style={{ marginTop: '-4px', marginBottom: '-4px' }}>
+        <div
+          onMouseDown={handleVerticalMouseDown}
+          className={`h-0.5 cursor-row-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+          style={{ width: `${horizontalSplit}%`, paddingTop: '4px', paddingBottom: '4px' }}
+        />
+        <div
+          onMouseDown={handleBothMouseDown}
+          className={`w-2 h-2 cursor-move absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 hover:opacity-100 rounded-sm ${isDark ? 'bg-gray-600 hover:bg-blue-500' : 'bg-gray-400 hover:bg-blue-500'} transition-all z-10`}
+          title="Drag to move both dividers"
+        />
+        <div
+          onMouseDown={handleVerticalMouseDown}
+          className={`h-0.5 cursor-row-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+          style={{ width: `${100 - horizontalSplit}%`, paddingTop: '4px', paddingBottom: '4px' }}
+        />
+      </div>
+      <div style={{ height: `${100 - verticalSplit}%` }} className="flex">
+        <div style={{ width: `${horizontalSplit}%` }}>
+          <ViewportPanel label="Front View" theme={theme} onDoubleClick={onDoubleClick} />
+        </div>
+        <div
+          onMouseDown={handleHorizontalMouseDown}
+          className={`w-0.5 cursor-col-resize relative ${isDark ? 'bg-gray-700 hover:bg-blue-500' : 'bg-gray-300 hover:bg-blue-500'} transition-colors`}
+          style={{ marginLeft: '-4px', marginRight: '-4px', paddingLeft: '4px', paddingRight: '4px' }}
+        />
+        <div style={{ width: `${100 - horizontalSplit}%` }}>
+          <ViewportPanel label="Right View" theme={theme} onDoubleClick={onDoubleClick} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* Camera/View Info */}
-      <div className="absolute bottom-3 right-3 bg-card border border-border rounded-lg shadow-sm px-2 py-1">
-        <span className="text-xs text-muted-foreground">
-          {viewport.viewType === 'perspective' ? '45°' : viewTypeLabels[viewport.viewType]}
-        </span>
+function ViewportPanel({ label, theme, onDoubleClick }: { label: string; theme: Theme; onDoubleClick?: (label: string) => void }) {
+  const isDark = theme === 'dark';
+  
+  return (
+    <div 
+      className={`relative w-full h-full rounded border ${
+        isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+      }`}
+      onDoubleClick={() => onDoubleClick?.(label)}
+    >
+      {/* Viewport Label with Grey Background */}
+      <div className={`absolute top-2 left-2 px-2 py-1 rounded border text-xs ${
+        isDark ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-300 border-gray-400 text-gray-800'
+      }`}>
+        {label}
+      </div>
+
+      {/* Grid representation */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className={`w-full h-full ${isDark ? 'opacity-10' : 'opacity-5'}`}
+          style={{
+            backgroundImage: `
+              linear-gradient(${isDark ? '#fff' : '#000'} 1px, transparent 1px),
+              linear-gradient(90deg, ${isDark ? '#fff' : '#000'} 1px, transparent 1px)
+            `,
+            backgroundSize: '40px 40px',
+            backgroundPosition: 'center center'
+          }}
+        />
+      </div>
+
+      {/* Axis indicator */}
+      <div className="absolute bottom-4 left-4 flex flex-col gap-1">
+        <div className="flex items-center gap-1">
+          <div className="w-8 h-0.5 bg-red-500" />
+          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>X</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-8 h-0.5 bg-green-500" />
+          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Y</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-8 h-0.5 bg-blue-500" />
+          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Z</span>
+        </div>
+      </div>
+
+      {/* Center placeholder */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className={`text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
+          3D Viewport
+        </div>
       </div>
     </div>
   );

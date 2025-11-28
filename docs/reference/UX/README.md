@@ -1,7 +1,7 @@
 
-  # Draft Design for Desktop App
+  # Review Latent UX Specification
 
-  This is a code bundle for Draft Design for Desktop App. The original project is available at https://www.figma.com/design/bzQBmXIwlfjqQA6cFCqjgK/Draft-Design-for-Desktop-App.
+  This is a code bundle for Review Latent UX Specification. The original project is available at https://www.figma.com/design/3javSUouEhUvkOtMDbVJTX/Review-Latent-UX-Specification.
 
   ## Running the code
 

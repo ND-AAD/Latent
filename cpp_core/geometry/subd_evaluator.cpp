@@ -123,11 +123,26 @@ TessellationResult SubDEvaluator::tessellate(int subdivision_level,
         throw std::runtime_error("SubDEvaluator: Invalid subdivision level (must be 0-10)");
     }
 
-    // Refine topology uniformly (only if not already refined to this level)
+    // Refine topology uniformly to requested level
+    // RefineUniform creates ALL intermediate levels (0 to N)
+    // IMPORTANT: To avoid multiple RefineUniform calls (which can cause crashes),
+    // refine to a reasonable maximum on first call
     int current_max_level = refiner_->GetMaxLevel();
     if (current_max_level < subdivision_level) {
-        Far::TopologyRefiner::UniformOptions refine_options(subdivision_level);
-        refiner_->RefineUniform(refine_options);
+        if (current_max_level == 0) {
+            // First refinement - refine to at least level 3 to handle common cases
+            // This avoids needing to call RefineUniform multiple times
+            int refine_to_level = std::max(subdivision_level, 3);
+            Far::TopologyRefiner::UniformOptions refine_options(refine_to_level);
+            refiner_->RefineUniform(refine_options);
+        } else {
+            // ERROR: Can't refine further after initial refinement
+            // OpenSubdiv doesn't support calling RefineUniform multiple times reliably
+            throw std::runtime_error(
+                "Cannot refine beyond initial level " + std::to_string(current_max_level) +
+                ". Reinitialize SubDEvaluator to use higher subdivision levels."
+            );
+        }
     }
 
     // Get refined level
@@ -266,6 +281,14 @@ TessellationResult SubDEvaluator::tessellate(int subdivision_level,
 void add_face_normal(const std::vector<float>& vertices,
                      std::vector<float>& normals,
                      int v0, int v1, int v2) {
+    // Bounds checking to prevent segfaults
+    int max_vertex_count = vertices.size() / 3;
+    if (v0 < 0 || v0 >= max_vertex_count ||
+        v1 < 0 || v1 >= max_vertex_count ||
+        v2 < 0 || v2 >= max_vertex_count) {
+        return;  // Skip invalid vertices
+    }
+
     // Get vertex positions
     float p0x = vertices[v0 * 3 + 0], p0y = vertices[v0 * 3 + 1], p0z = vertices[v0 * 3 + 2];
     float p1x = vertices[v1 * 3 + 0], p1y = vertices[v1 * 3 + 1], p1z = vertices[v1 * 3 + 2];

@@ -1,0 +1,366 @@
+/**
+ * Responsive Grid System Templates
+ * Mobile-first, flexible grid layouts
+ */
+
+/* ====================================
+   Design Tokens
+   ==================================== */
+:root {
+  /* Spacing */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* Container */
+  --container-max: 1200px;
+  --container-padding: var(--spacing-4);
+
+  /* Grid gaps */
+  --gap-small: var(--spacing-2);
+  --gap-medium: var(--spacing-4);
+  --gap-large: var(--spacing-6);
+
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+/* ====================================
+   Base Container
+   ==================================== */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--container-padding);
+}
+
+.container--fluid {
+  max-width: 100%;
+}
+
+.container--narrow {
+  max-width: 768px;
+}
+
+.container--wide {
+  max-width: 1440px;
+}
+
+/* ====================================
+   12-Column Grid System
+   ==================================== */
+.grid {
+  display: grid;
+  gap: var(--gap-medium);
+}
+
+/* Auto-fit responsive grid */
+.grid--auto {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Fixed column grids */
+.grid--1 { grid-template-columns: 1fr; }
+.grid--2 { grid-template-columns: repeat(2, 1fr); }
+.grid--3 { grid-template-columns: repeat(3, 1fr); }
+.grid--4 { grid-template-columns: repeat(4, 1fr); }
+.grid--6 { grid-template-columns: repeat(6, 1fr); }
+
+/* 12-column traditional grid */
+.grid--12 {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+/* Column spans for 12-col grid */
+.col-1 { grid-column: span 1; }
+.col-2 { grid-column: span 2; }
+.col-3 { grid-column: span 3; }
+.col-4 { grid-column: span 4; }
+.col-5 { grid-column: span 5; }
+.col-6 { grid-column: span 6; }
+.col-7 { grid-column: span 7; }
+.col-8 { grid-column: span 8; }
+.col-9 { grid-column: span 9; }
+.col-10 { grid-column: span 10; }
+.col-11 { grid-column: span 11; }
+.col-12 { grid-column: span 12; }
+
+/* Gap variations */
+.gap--none { gap: 0; }
+.gap--small { gap: var(--gap-small); }
+.gap--medium { gap: var(--gap-medium); }
+.gap--large { gap: var(--gap-large); }
+
+/* ====================================
+   Flexbox Layouts
+   ==================================== */
+.flex {
+  display: flex;
+  gap: var(--gap-medium);
+}
+
+.flex--row { flex-direction: row; }
+.flex--column { flex-direction: column; }
+.flex--wrap { flex-wrap: wrap; }
+
+/* Alignment */
+.justify--start { justify-content: flex-start; }
+.justify--center { justify-content: center; }
+.justify--end { justify-content: flex-end; }
+.justify--between { justify-content: space-between; }
+.justify--around { justify-content: space-around; }
+.justify--evenly { justify-content: space-evenly; }
+
+.align--start { align-items: flex-start; }
+.align--center { align-items: center; }
+.align--end { align-items: flex-end; }
+.align--stretch { align-items: stretch; }
+
+/* Flex children */
+.flex--1 { flex: 1; }
+.flex--2 { flex: 2; }
+.flex--3 { flex: 3; }
+.flex--auto { flex: auto; }
+.flex--none { flex: none; }
+
+/* ====================================
+   Common Layout Patterns
+   ==================================== */
+
+/* Card Grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-6);
+}
+
+/* Sidebar Layout */
+.layout--sidebar {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: var(--spacing-8);
+  min-height: 100vh;
+}
+
+.layout--sidebar-right {
+  grid-template-columns: 1fr 250px;
+}
+
+/* Holy Grail Layout */
+.layout--holy-grail {
+  display: grid;
+  grid-template-areas:
+    "header header header"
+    "sidebar main aside"
+    "footer footer footer";
+  grid-template-columns: 200px 1fr 200px;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  gap: var(--spacing-4);
+}
+
+.header { grid-area: header; }
+.sidebar { grid-area: sidebar; }
+.main { grid-area: main; }
+.aside { grid-area: aside; }
+.footer { grid-area: footer; }
+
+/* Magazine Layout */
+.layout--magazine {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--spacing-6);
+}
+
+.feature { grid-column: span 4; }
+.sidebar-content { grid-column: span 2; }
+
+/* Masonry-like Layout */
+.layout--masonry {
+  columns: 3;
+  column-gap: var(--spacing-4);
+}
+
+.masonry-item {
+  break-inside: avoid;
+  margin-bottom: var(--spacing-4);
+}
+
+/* ====================================
+   Responsive Breakpoints
+   ==================================== */
+
+/* Small devices (640px and up) */
+@media (min-width: 640px) {
+  .container {
+    --container-padding: var(--spacing-6);
+  }
+
+  .sm\:grid--1 { grid-template-columns: 1fr; }
+  .sm\:grid--2 { grid-template-columns: repeat(2, 1fr); }
+  .sm\:grid--3 { grid-template-columns: repeat(3, 1fr); }
+  .sm\:grid--4 { grid-template-columns: repeat(4, 1fr); }
+
+  .sm\:col-6 { grid-column: span 6; }
+  .sm\:col-12 { grid-column: span 12; }
+}
+
+/* Medium devices (768px and up) */
+@media (min-width: 768px) {
+  .container {
+    --container-padding: var(--spacing-8);
+  }
+
+  .md\:grid--2 { grid-template-columns: repeat(2, 1fr); }
+  .md\:grid--3 { grid-template-columns: repeat(3, 1fr); }
+  .md\:grid--4 { grid-template-columns: repeat(4, 1fr); }
+  .md\:grid--6 { grid-template-columns: repeat(6, 1fr); }
+
+  .md\:col-3 { grid-column: span 3; }
+  .md\:col-4 { grid-column: span 4; }
+  .md\:col-6 { grid-column: span 6; }
+  .md\:col-8 { grid-column: span 8; }
+
+  .layout--sidebar {
+    grid-template-columns: 280px 1fr;
+  }
+}
+
+/* Large devices (1024px and up) */
+@media (min-width: 1024px) {
+  .lg\:grid--3 { grid-template-columns: repeat(3, 1fr); }
+  .lg\:grid--4 { grid-template-columns: repeat(4, 1fr); }
+  .lg\:grid--5 { grid-template-columns: repeat(5, 1fr); }
+  .lg\:grid--6 { grid-template-columns: repeat(6, 1fr); }
+
+  .lg\:col-2 { grid-column: span 2; }
+  .lg\:col-3 { grid-column: span 3; }
+  .lg\:col-4 { grid-column: span 4; }
+  .lg\:col-9 { grid-column: span 9; }
+
+  .layout--masonry {
+    columns: 4;
+  }
+}
+
+/* Extra large devices (1280px and up) */
+@media (min-width: 1280px) {
+  .xl\:grid--6 { grid-template-columns: repeat(6, 1fr); }
+  .xl\:grid--8 { grid-template-columns: repeat(8, 1fr); }
+
+  .layout--masonry {
+    columns: 5;
+  }
+}
+
+/* ====================================
+   Mobile-First Responsive Utilities
+   ==================================== */
+
+/* Hide/Show utilities */
+.hide { display: none; }
+.show { display: block; }
+
+@media (min-width: 640px) {
+  .sm\:hide { display: none; }
+  .sm\:show { display: block; }
+}
+
+@media (min-width: 768px) {
+  .md\:hide { display: none; }
+  .md\:show { display: block; }
+}
+
+@media (min-width: 1024px) {
+  .lg\:hide { display: none; }
+  .lg\:show { display: block; }
+}
+
+/* ====================================
+   Mobile Patterns
+   ==================================== */
+
+/* Stack on mobile, side-by-side on desktop */
+.responsive-pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-4);
+}
+
+@media (min-width: 768px) {
+  .responsive-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Mobile-first card layout */
+.responsive-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-4);
+}
+
+@media (min-width: 640px) {
+  .responsive-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ====================================
+   Accessibility & Print
+   ==================================== */
+
+/* Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Print styles */
+@media print {
+  .container {
+    max-width: 100%;
+  }
+
+  .grid,
+  .flex {
+    gap: 0;
+  }
+
+  .hide-print {
+    display: none;
+  }
+}
