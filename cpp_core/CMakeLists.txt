@@ -231,6 +231,70 @@ if(APPLE)
     endif()
 endif()
 
+# Shared library for P/Invoke (Rhino plugin)
+add_library(latent_core SHARED
+    geometry/subd_evaluator.cpp
+    utils/mesh_mapping.cpp
+    analysis/curvature_analyzer.cpp
+    constraints/constraint_report.cpp
+    constraints/constraint_validator.cpp
+    constraints/draft_checker.cpp
+    constraints/undercut_detector.cpp
+)
+
+# Add NURBS generator sources if OpenCASCADE is available
+if(OpenCASCADE_FOUND)
+    target_sources(latent_core PRIVATE
+        geometry/nurbs_fitting.cpp
+        geometry/draft_transform.cpp
+        geometry/mold_solid.cpp
+    )
+    target_compile_definitions(latent_core PUBLIC HAVE_OPENCASCADE)
+endif()
+
+# Platform-specific export settings
+if(WIN32)
+    target_compile_definitions(latent_core PRIVATE LATENT_EXPORTS)
+endif()
+
+# Set visibility to default on non-Windows platforms
+if(NOT WIN32)
+    set_target_properties(latent_core PROPERTIES
+        CXX_VISIBILITY_PRESET default
+        VISIBILITY_INLINES_HIDDEN OFF
+    )
+endif()
+
+target_include_directories(latent_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Link OpenSubdiv
+if(OpenSubdiv_FOUND)
+    target_include_directories(latent_core PUBLIC ${OPENSUBDIV_INCLUDE_DIR})
+    target_link_libraries(latent_core PUBLIC ${OPENSUBDIV_LIBRARIES})
+else()
+    target_include_directories(latent_core PUBLIC ${OPENSUBDIV_INCLUDE_DIRS})
+    target_link_libraries(latent_core PUBLIC ${OPENSUBDIV_LIBRARIES})
+endif()
+
+# Link OpenCASCADE if found
+if(OpenCASCADE_FOUND)
+    target_include_directories(latent_core PUBLIC ${OPENCASCADE_INCLUDE_DIRS})
+    target_link_libraries(latent_core PUBLIC ${OPENCASCADE_LIBRARIES})
+endif()
+
+# Enable Metal on macOS for shared library
+if(APPLE)
+    target_compile_definitions(latent_core PUBLIC OPENSUBDIV_HAS_METAL)
+    if(METAL_LIBRARY)
+        target_link_libraries(latent_core PUBLIC ${METAL_LIBRARY})
+    endif()
+endif()
+
+# Include c_bindings subdirectory
+add_subdirectory(c_bindings)
+
 # Python module
 pybind11_add_module(cpp_core_py python_bindings/bindings.cpp)
 
@@ -280,6 +344,16 @@ endif()
 install(TARGETS cpp_core_static ARCHIVE DESTINATION lib)
 install(TARGETS cpp_core_py LIBRARY DESTINATION .)
 
+# Installation rules for shared library
+install(TARGETS latent_core
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+install(FILES c_bindings/exports.h
+    DESTINATION include/latent
+)
+
 # Enable testing with Google Test
 option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)
@@ -288,6 +362,7 @@ endif()
 
 message(STATUS "Configuration complete!")
 message(STATUS "  Static library: libcpp_core.a")
+message(STATUS "  Shared library: liblatent_core.dylib (or .dll on Windows)")
 message(STATUS "  Python module: cpp_core.so (or .pyd on Windows)")
 message(STATUS "  Test executable: test_subd_evaluator")
 if(BUILD_TESTS)
