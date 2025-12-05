@@ -9,7 +9,7 @@ Launch 4 parallel agents to create the Rhino plugin with P/Invoke bindings, anal
 - [ ] Analysis service tests pass
 - [ ] .NET 4.8 or higher installed
 - [ ] Rhino 8 installed
-- [ ] Working directory is `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+- [ ] Working directory is `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Agent Overview
 
@@ -48,26 +48,26 @@ Launch 4 agents in parallel using the Task tool:
 
 ### Agent 3A
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-3/agent-3a-pinvoke.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-3/agent-3a-pinvoke.md`
 
 ### Agent 3B
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-3/agent-3b-lens-client.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-3/agent-3b-lens-client.md`
 
 ### Agent 3C
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-3/agent-3c-plugin-entry.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-3/agent-3c-plugin-entry.md`
 
 ### Agent 3D
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-3/agent-3d-data-model.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-3/agent-3d-data-model.md`
 
 ## Post-Phase Consolidation
 
 After all agents complete:
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/rhino_plugin
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
 
 # Restore NuGet packages
 dotnet restore
@@ -104,7 +104,7 @@ set -e
 
 echo "=== Phase 3 Gate Tests ==="
 
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/rhino_plugin
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
 
 # Test 3.1: Plugin builds
 dotnet build

@@ -6,7 +6,7 @@ Implement boundary curve extraction from curvature analysis using marching squar
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -686,7 +686,7 @@ class TestParametricCurve:
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Run boundary extraction tests
 python -m pytest tests/test_boundary_extraction.py -v

@@ -6,7 +6,7 @@ Create C-compatible wrapper for core SubD evaluator functions, enabling P/Invoke
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 

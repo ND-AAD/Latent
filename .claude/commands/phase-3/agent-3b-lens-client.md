@@ -6,7 +6,7 @@ Create C# client for communicating with the Python analysis service via JSON-RPC
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -868,7 +868,7 @@ namespace Latent.Tests
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/rhino_plugin
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
 
 # Build the plugin
 dotnet build

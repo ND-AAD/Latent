@@ -6,7 +6,7 @@ Create C-compatible wrappers for surface curves and curvature analysis, enabling
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 

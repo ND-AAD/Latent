@@ -6,7 +6,7 @@ Configure CMake to build a shared library with C bindings for P/Invoke compatibi
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 

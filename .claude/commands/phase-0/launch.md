@@ -4,7 +4,7 @@ Launch 2 parallel agents to set up the build system and project structure.
 
 ## Pre-Launch Checklist
 
-- [ ] Working directory is `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+- [ ] Working directory is `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 - [ ] Git repository is clean or changes are committed
 - [ ] Rhino 8 installed on development machine
 
@@ -31,18 +31,18 @@ Launch 2 agents in parallel using the Task tool:
 
 ### Agent 0A
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-0/agent-0a-cpp-build-setup.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-0/agent-0a-cpp-build-setup.md`
 
 ### Agent 0B
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-0/agent-0b-project-structure.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-0/agent-0b-project-structure.md`
 
 ## Post-Phase Consolidation
 
 After both agents complete:
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Verify C++ build
 cd cpp_core/build && cmake .. && make -j4
@@ -74,7 +74,7 @@ set -e
 
 echo "=== Phase 0 Gate Tests ==="
 
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Test 0.1: CMake configuration succeeds
 cd cpp_core/build && cmake ..

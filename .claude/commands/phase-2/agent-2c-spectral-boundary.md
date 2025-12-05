@@ -6,7 +6,7 @@ Implement nodal line extraction from eigenfunction analysis using zero-crossing 
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -710,7 +710,7 @@ class TestExtractFromEigenfunction:
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Run nodal extraction tests
 python -m pytest tests/test_nodal_extraction.py -v

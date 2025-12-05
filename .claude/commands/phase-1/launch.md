@@ -6,7 +6,7 @@ Launch 4 parallel agents to extend the C++ core with inverse evaluation, surface
 
 - [ ] Phase 0 gate tests passed
 - [ ] Shared library builds successfully (`liblatent_core.dylib`)
-- [ ] Working directory is `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+- [ ] Working directory is `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Agent Overview
 
@@ -38,26 +38,26 @@ Launch 4 agents in parallel using the Task tool:
 
 ### Agent 1A
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-1/agent-1a-inverse-eval.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-1/agent-1a-inverse-eval.md`
 
 ### Agent 1B
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-1/agent-1b-surface-curve.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-1/agent-1b-surface-curve.md`
 
 ### Agent 1C
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-1/agent-1c-c-bindings-core.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-1/agent-1c-c-bindings-core.md`
 
 ### Agent 1D
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-1/agent-1d-c-bindings-extended.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-1/agent-1d-c-bindings-extended.md`
 
 ## Post-Phase Consolidation
 
 After all agents complete:
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Full build
 cd cpp_core/build
@@ -96,7 +96,7 @@ set -e
 
 echo "=== Phase 1 Gate Tests ==="
 
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/cpp_core/build
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/cpp_core/build
 
 # Test 1.1: Full build succeeds
 cmake .. && make -j4

@@ -6,7 +6,7 @@ Create the region/vertex/edge data model and state management with Rhino undo in
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -1081,7 +1081,7 @@ namespace Latent.Tests
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/rhino_plugin
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
 
 # Build
 dotnet build

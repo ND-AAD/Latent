@@ -7,7 +7,7 @@ Launch 3 parallel agents to create the JSON-RPC analysis service with boundary e
 - [ ] Phase 1 gate tests passed
 - [ ] C++ core builds and tests pass
 - [ ] Python environment has numpy, scipy, pytest installed
-- [ ] Working directory is `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+- [ ] Working directory is `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Agent Overview
 
@@ -44,22 +44,22 @@ Launch 3 agents in parallel using the Task tool:
 
 ### Agent 2A
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-2/agent-2a-jsonrpc-server.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-2/agent-2a-jsonrpc-server.md`
 
 ### Agent 2B
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-2/agent-2b-differential-boundary.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-2/agent-2b-differential-boundary.md`
 
 ### Agent 2C
 - **Subagent Type**: `general-purpose`
-- **Prompt**: Read and execute `/Users/NickDuch/.claude-worktrees/Latent/focused-robinson/.claude/commands/phase-2/agent-2c-spectral-boundary.md`
+- **Prompt**: Read and execute `/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/.claude/commands/phase-2/agent-2c-spectral-boundary.md`
 
 ## Post-Phase Consolidation
 
 After all agents complete:
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Install dependencies
 pip install -r analysis_service/requirements.txt
@@ -106,7 +106,7 @@ set -e
 
 echo "=== Phase 2 Gate Tests ==="
 
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Test 2.1: Protocol tests pass
 python -m pytest tests/test_analysis_protocol.py -v

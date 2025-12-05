@@ -6,7 +6,7 @@ Implement 3D point → (face_id, u, v) projection onto SubD limit surface using 
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 

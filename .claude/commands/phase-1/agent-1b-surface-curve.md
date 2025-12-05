@@ -6,7 +6,7 @@ Implement parametric curves on the SubD limit surface (Bezier and B-spline in pa
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 

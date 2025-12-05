@@ -6,7 +6,7 @@ Create a JSON-RPC 2.0 server infrastructure for the Python analysis service.
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -756,7 +756,7 @@ pytest>=7.0.0
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent
 
 # Run protocol tests
 python -m pytest tests/test_analysis_protocol.py -v

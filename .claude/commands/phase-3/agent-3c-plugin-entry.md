@@ -6,7 +6,7 @@ Create the Rhino plugin infrastructure with entry point and basic commands.
 
 ## Working Directory
 
-`/Users/NickDuch/.claude-worktrees/Latent/focused-robinson`
+`/Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent`
 
 ## Read First
 
@@ -693,7 +693,7 @@ namespace Latent.Commands
 ## Verification Commands
 
 ```bash
-cd /Users/NickDuch/.claude-worktrees/Latent/focused-robinson/rhino_plugin
+cd /Users/NickDuch/Desktop/Ind Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
 
 # Build the plugin
 dotnet build
