@@ -34,6 +34,13 @@ except ImportError:
 
 from app.state.parametric_region import ParametricRegion, ParametricCurve
 
+from .boundary_extraction import (
+    extract_curvature_contours,
+    extract_ridge_lines,
+    extract_valley_lines,
+    ParametricCurve as BoundaryParametricCurve
+)
+
 
 @dataclass
 class DifferentialLensParams:
@@ -667,3 +674,153 @@ class DifferentialLens:
             Dictionary of face curvature statistics, or None if not computed
         """
         return self._curvature_cache
+
+    def _compute_principal_curvatures(self, face_id: int, u: float, v: float) -> Tuple[float, float]:
+        """
+        Compute principal curvatures at a parametric location.
+
+        Args:
+            face_id: Face index
+            u: U parameter
+            v: V parameter
+
+        Returns:
+            Tuple (k1, k2) of principal curvatures
+        """
+        curv = self.curvature_analyzer.compute_curvature(
+            self.evaluator,
+            face_id,
+            float(u),
+            float(v)
+        )
+        return (curv.kappa1, curv.kappa2)
+
+    def extract_boundary_curves(
+        self,
+        curvature_type: str = "mean",
+        threshold: float = 0.0,
+        resolution: int = 20
+    ) -> List[BoundaryParametricCurve]:
+        """
+        Extract boundary curves where curvature crosses threshold.
+
+        Args:
+            curvature_type: "mean" (H), "gaussian" (K), "k1", or "k2"
+            threshold: Curvature value to extract contour at
+            resolution: Sampling resolution per face
+
+        Returns:
+            List of boundary curves in parametric space
+        """
+        all_curves = []
+
+        def sample_curvature(face_id: int, u: float, v: float) -> float:
+            k1, k2 = self._compute_principal_curvatures(face_id, u, v)
+            if curvature_type == "mean":
+                return (k1 + k2) / 2
+            elif curvature_type == "gaussian":
+                return k1 * k2
+            elif curvature_type == "k1":
+                return k1
+            else:  # k2
+                return k2
+
+        for face_id in range(self.evaluator.get_control_face_count()):
+            curves = extract_curvature_contours(
+                sample_curvature,
+                face_id,
+                threshold,
+                resolution
+            )
+            all_curves.extend(curves)
+
+        return all_curves
+
+    def extract_ridges(
+        self,
+        resolution: int = 20,
+        percentile: float = 90
+    ) -> List[BoundaryParametricCurve]:
+        """
+        Extract ridge lines (high |κ₁| regions).
+
+        Args:
+            resolution: Sampling resolution per face
+            percentile: Threshold percentile
+
+        Returns:
+            List of ridge curves
+        """
+        all_curves = []
+
+        def curvature_func(face_id: int, u: float, v: float) -> Tuple[float, float]:
+            return self._compute_principal_curvatures(face_id, u, v)
+
+        for face_id in range(self.evaluator.get_control_face_count()):
+            curves = extract_ridge_lines(
+                curvature_func,
+                face_id,
+                resolution,
+                percentile
+            )
+            all_curves.extend(curves)
+
+        return all_curves
+
+    def extract_valleys(
+        self,
+        resolution: int = 20,
+        percentile: float = 10
+    ) -> List[BoundaryParametricCurve]:
+        """
+        Extract valley lines (low |κ₁| regions).
+        """
+        all_curves = []
+
+        def curvature_func(face_id: int, u: float, v: float) -> Tuple[float, float]:
+            return self._compute_principal_curvatures(face_id, u, v)
+
+        for face_id in range(self.evaluator.get_control_face_count()):
+            curves = extract_valley_lines(
+                curvature_func,
+                face_id,
+                resolution,
+                percentile
+            )
+            all_curves.extend(curves)
+
+        return all_curves
+
+    def discover_regions_with_boundaries(
+        self,
+        curvature_tolerance: float = 0.3,
+        resolution: int = 20
+    ) -> List[dict]:
+        """
+        Discover regions and extract their boundary curves.
+
+        Returns list of dicts with region info including boundary curves.
+        """
+        # Get base regions
+        regions = self.discover_regions()
+
+        # Extract boundaries at tolerance threshold
+        mean_curves = self.extract_boundary_curves(
+            curvature_type="mean",
+            threshold=curvature_tolerance,
+            resolution=resolution
+        )
+
+        # TODO: Match curves to regions based on spatial relationship
+        # For now, return curves with the first region
+        result = []
+        for i, region in enumerate(regions):
+            region_dict = {
+                "id": region.id,
+                "unity_principle": region.unity_principle,
+                "resonance_score": region.unity_strength,
+                "boundary_curves": [c.to_control_points() for c in mean_curves] if i == 0 else []
+            }
+            result.append(region_dict)
+
+        return result
