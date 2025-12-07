@@ -42,3 +42,7 @@ Thumbs.db
 
 # Sprint documentation (internal development artifacts)
 docs/reference/api_sprint/
+
+# .NET build artifacts
+obj/
+bin/
