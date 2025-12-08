@@ -113,64 +113,91 @@ namespace Latent.Interop
 
         /// <summary>
         /// Extract control cage from Rhino SubD.
-        /// NOTE: This is a stub implementation. RhinoCommon 8 SubD API access to control cage
-        /// requires using ComponentIndex and direct mesh extraction. For now, we create a
-        /// simple mesh approximation.
-        /// TODO: Implement proper control cage extraction when RhinoCommon API is clarified.
+        /// This extracts the control net vertices, face topology, and crease information
+        /// using RhinoCommon's SubD API - NO mesh conversion, maintaining exact representation.
+        ///
+        /// Note: RhinoCommon SubD uses linked-list iteration (.First/.Next pattern),
+        /// not array-based access like meshes.
         /// </summary>
         private static (float[] vertices, int[] faces, int[] faceSizes,
                         int[]? creaseEdges, float[]? creaseSharpness) ExtractCage(SubD subd)
         {
-            // For now, create a simple test cage from a mesh
-            // This is a placeholder until proper SubD control cage API is available
-            var mesh = new Mesh();
-            mesh.Vertices.Add(new Point3d(0, 0, 0));
-            mesh.Vertices.Add(new Point3d(1, 0, 0));
-            mesh.Vertices.Add(new Point3d(1, 1, 0));
-            mesh.Vertices.Add(new Point3d(0, 1, 0));
-            mesh.Faces.AddFace(0, 1, 2, 3);
+            if (subd == null)
+                throw new ArgumentNullException(nameof(subd));
 
-            // Extract vertices from mesh
+            // Build vertex index mapping: SubD vertex ID -> sequential index
+            // SubD vertices use linked-list iteration: .First, then .Next
+            var vertexMap = new Dictionary<uint, int>();
             var vertices = new List<float>();
-            for (int i = 0; i < mesh.Vertices.Count; i++)
+
+            int idx = 0;
+            var vertex = subd.Vertices.First;
+            while (vertex != null)
             {
-                var v = mesh.Vertices[i];
-                vertices.Add((float)v.X);
-                vertices.Add((float)v.Y);
-                vertices.Add((float)v.Z);
+                // Use ControlNetPoint - the exact control cage position (NOT limit surface)
+                var pt = vertex.ControlNetPoint;
+                vertices.Add((float)pt.X);
+                vertices.Add((float)pt.Y);
+                vertices.Add((float)pt.Z);
+                vertexMap[vertex.Id] = idx++;
+                vertex = vertex.Next;
             }
 
-            // Extract faces
-            var faces = new List<int>();
+            // Extract face topology from control net
+            // Use foreach which works with SubDFaceList's IEnumerable implementation
+            var faceIndices = new List<int>();
             var faceSizes = new List<int>();
 
-            for (int i = 0; i < mesh.Faces.Count; i++)
+            foreach (SubDFace face in subd.Faces)
             {
-                var f = mesh.Faces[i];
-                if (f.IsQuad)
+                // Get vertices around this face using VertexAt(index)
+                int edgeCount = face.EdgeCount;
+                faceSizes.Add(edgeCount);
+
+                // Collect vertex IDs using the proper VertexAt API
+                for (int i = 0; i < edgeCount; i++)
                 {
-                    faceSizes.Add(4);
-                    faces.Add(f.A);
-                    faces.Add(f.B);
-                    faces.Add(f.C);
-                    faces.Add(f.D);
-                }
-                else
-                {
-                    faceSizes.Add(3);
-                    faces.Add(f.A);
-                    faces.Add(f.B);
-                    faces.Add(f.C);
+                    var faceVertex = face.VertexAt(i);
+                    if (faceVertex != null && vertexMap.TryGetValue(faceVertex.Id, out int vertexIndex))
+                    {
+                        faceIndices.Add(vertexIndex);
+                    }
                 }
             }
 
-            // No creases in this stub implementation
+            // Extract crease edges
+            // Use foreach which works with SubDEdgeList's IEnumerable implementation
+            var creaseEdgeIndices = new List<int>();
+            var creaseSharpnessValues = new List<float>();
+
+            foreach (SubDEdge edge in subd.Edges)
+            {
+                // Check if edge is a crease using Tag property
+                // SubDEdgeTag.Crease indicates a crease edge
+                if (edge.Tag == SubDEdgeTag.Crease)
+                {
+                    // Get vertices at ends of edge using VertexFrom/VertexTo properties
+                    var v0 = edge.VertexFrom;
+                    var v1 = edge.VertexTo;
+
+                    if (v0 != null && v1 != null &&
+                        vertexMap.TryGetValue(v0.Id, out int idx0) &&
+                        vertexMap.TryGetValue(v1.Id, out int idx1))
+                    {
+                        creaseEdgeIndices.Add(idx0);
+                        creaseEdgeIndices.Add(idx1);
+                        // Crease edges are sharp (weight 1.0)
+                        creaseSharpnessValues.Add(1.0f);
+                    }
+                }
+            }
+
             return (
                 vertices.ToArray(),
-                faces.ToArray(),
+                faceIndices.ToArray(),
                 faceSizes.ToArray(),
-                null,
-                null
+                creaseEdgeIndices.Count > 0 ? creaseEdgeIndices.ToArray() : null,
+                creaseSharpnessValues.Count > 0 ? creaseSharpnessValues.ToArray() : null
             );
         }
 

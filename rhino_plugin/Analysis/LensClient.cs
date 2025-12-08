@@ -166,44 +166,73 @@ namespace Latent.Analysis
 
         /// <summary>
         /// Extract control cage from Rhino SubD.
-        /// NOTE: This is a simplified extraction that works with RhinoCommon 8.
-        /// For a production implementation, Agent 3A should implement a proper C++ binding.
+        /// Uses RhinoCommon's SubD API to extract control net - NO mesh conversion.
+        ///
+        /// Note: RhinoCommon SubD uses linked-list iteration (.First/.Next pattern),
+        /// not array-based access like meshes.
         /// </summary>
         private static ControlCage ExtractControlCage(SubD subd)
         {
+            if (subd == null)
+                throw new ArgumentNullException(nameof(subd));
+
             var cage = new ControlCage();
 
-            // For now, create a simple placeholder cage
-            // This will be replaced by proper C++ extraction in Agent 3A's domain
-            // The actual topology extraction should be done via the C++ core
+            // Build vertex index mapping: SubD vertex ID -> sequential index
+            // SubD vertices use linked-list iteration: .First property, then .Next
+            var vertexMap = new Dictionary<uint, int>();
+            int idx = 0;
 
-            // Add a warning that this is temporary
-            System.Diagnostics.Debug.WriteLine(
-                "WARNING: Using placeholder ExtractControlCage. " +
-                "This should be replaced with proper C++ core extraction."
-            );
+            SubDVertex? vertex = subd.Vertices.First;
+            while (vertex != null)
+            {
+                // Use ControlNetPoint - exact control cage position (NOT limit surface)
+                var pt = vertex.ControlNetPoint;
+                cage.Vertices.Add(new List<double> { pt.X, pt.Y, pt.Z });
+                vertexMap[vertex.Id] = idx++;
+                vertex = vertex.Next;
+            }
 
-            // Return minimal valid cage structure
-            // The Python service will need valid data, so we provide a simple box
-            cage.Vertices.Add(new List<double> { -1, -1, -1 });
-            cage.Vertices.Add(new List<double> {  1, -1, -1 });
-            cage.Vertices.Add(new List<double> {  1,  1, -1 });
-            cage.Vertices.Add(new List<double> { -1,  1, -1 });
-            cage.Vertices.Add(new List<double> { -1, -1,  1 });
-            cage.Vertices.Add(new List<double> {  1, -1,  1 });
-            cage.Vertices.Add(new List<double> {  1,  1,  1 });
-            cage.Vertices.Add(new List<double> { -1,  1,  1 });
+            // Extract face topology from control net
+            // Use foreach which works with SubDFaceList's IEnumerable implementation
+            foreach (SubDFace face in subd.Faces)
+            {
+                int edgeCount = face.EdgeCount;
+                var faceVertexIndices = new List<int>();
 
-            // Add faces (box)
-            cage.Faces.Add(new List<int> { 0, 1, 2, 3 }); // bottom
-            cage.Faces.Add(new List<int> { 4, 5, 6, 7 }); // top
-            cage.Faces.Add(new List<int> { 0, 1, 5, 4 }); // front
-            cage.Faces.Add(new List<int> { 2, 3, 7, 6 }); // back
-            cage.Faces.Add(new List<int> { 0, 3, 7, 4 }); // left
-            cage.Faces.Add(new List<int> { 1, 2, 6, 5 }); // right
+                // Collect vertex IDs using the proper VertexAt API
+                for (int i = 0; i < edgeCount; i++)
+                {
+                    var faceVertex = face.VertexAt(i);
+                    if (faceVertex != null && vertexMap.TryGetValue(faceVertex.Id, out int vertexIndex))
+                    {
+                        faceVertexIndices.Add(vertexIndex);
+                    }
+                }
 
-            // TODO: Replace this placeholder with actual SubD topology extraction
-            // This requires proper RhinoCommon API usage or delegation to C++ core
+                cage.Faces.Add(faceVertexIndices);
+            }
+
+            // Extract crease edges
+            // Use foreach which works with SubDEdgeList's IEnumerable implementation
+            foreach (SubDEdge edge in subd.Edges)
+            {
+                // Check if edge is a crease using Tag property
+                if (edge.Tag == SubDEdgeTag.Crease)
+                {
+                    // Get vertices at ends of edge using VertexFrom/VertexTo properties
+                    var v0 = edge.VertexFrom;
+                    var v1 = edge.VertexTo;
+
+                    if (v0 != null && v1 != null &&
+                        vertexMap.TryGetValue(v0.Id, out int idx0) &&
+                        vertexMap.TryGetValue(v1.Id, out int idx1))
+                    {
+                        // Crease edges are sharp (weight 1.0)
+                        cage.Creases.Add(new List<double> { idx0, idx1, 1.0 });
+                    }
+                }
+            }
 
             return cage;
         }
