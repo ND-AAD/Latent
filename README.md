@@ -284,6 +284,6 @@ Proprietary - All rights reserved
 
 ---
 
-*Latent: (adjective) existing but not yet developed or manifest; hidden or concealed.*
+*Latent: from the Latin latens — "lying hid, concealed, secret, unknown." Existing hidden.*
 
 Every form contains mathematical truths waiting to be revealed. This tool helps you see them.
