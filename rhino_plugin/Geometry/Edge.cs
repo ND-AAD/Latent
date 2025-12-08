@@ -23,6 +23,10 @@ namespace Latent.Geometry
         // Reference to vertices (populated by RegionManager)
         public List<Vertex> Vertices { get; internal set; } = new();
 
+        // Version tracking for cache invalidation
+        private int _version = 0;
+        public int Version => _version;
+
         public Edge(
             string id,
             List<string> vertexIds,
@@ -63,6 +67,17 @@ namespace Latent.Geometry
 
             if (ImplicitDegree.HasValue)
                 Degree = ImplicitDegree.Value;
+
+            IncrementVersion();
+        }
+
+        /// <summary>
+        /// Increment version for cache invalidation.
+        /// Call this whenever the edge geometry changes.
+        /// </summary>
+        public void IncrementVersion()
+        {
+            _version++;
         }
 
         /// <summary>
