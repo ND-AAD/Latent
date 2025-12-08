@@ -1,5 +1,6 @@
 // rhino_plugin/Geometry/UndoEvents.cs
 using System;
+using System.Collections.Generic;
 using Rhino;
 using Latent.Interop;
 
@@ -122,6 +123,57 @@ namespace Latent.Geometry
             if (vertex != null)
             {
                 vertex.Revert();
+                manager.InvalidateGeometry();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Undo event for reverting edge curve type.
+    /// </summary>
+    public class RevertEdgeCurveTypeUndoEvent : LatentUndoEvent
+    {
+        private readonly string _edgeId;
+        private readonly CurveType _oldCurveType;
+        private readonly int _oldDegree;
+        private readonly List<string> _removedVertexIds;
+
+        public RevertEdgeCurveTypeUndoEvent(
+            string edgeId,
+            CurveType oldCurveType,
+            int oldDegree,
+            List<string> removedVertexIds)
+        {
+            _edgeId = edgeId;
+            _oldCurveType = oldCurveType;
+            _oldDegree = oldDegree;
+            _removedVertexIds = removedVertexIds ?? new List<string>();
+        }
+
+        public override string Description => $"Revert edge {_edgeId} curve type";
+
+        public override void Undo(RegionManager manager)
+        {
+            var edge = manager.GetEdge(_edgeId);
+            if (edge != null)
+            {
+                // Restore the old curve type and degree
+                edge.CurveType = _oldCurveType;
+                edge.Degree = _oldDegree;
+                edge.IncrementVersion();
+
+                // Note: Restoring removed vertices would require more complex state management
+                // For now, we restore the curve type/degree which is the primary operation
+                manager.InvalidateGeometry();
+            }
+        }
+
+        public override void Redo(RegionManager manager)
+        {
+            var edge = manager.GetEdge(_edgeId);
+            if (edge != null)
+            {
+                edge.RevertCurveType();
                 manager.InvalidateGeometry();
             }
         }

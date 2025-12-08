@@ -267,16 +267,152 @@ namespace Latent.Geometry
             return FindRegionContaining(param);
         }
 
+        /// <summary>
+        /// Find the edge nearest to the given parametric point.
+        /// Calculates minimum distance from the point to any edge segment.
+        /// </summary>
+        /// <param name="param">The parametric point to search from</param>
+        /// <returns>The nearest edge, or null if no edges exist</returns>
         public Edge? FindNearestEdge(ParametricPoint param)
         {
-            // TODO: Implement proper proximity test
-            return _edges.Values.FirstOrDefault();
+            if (!param.IsValid || _edges.Count == 0)
+                return null;
+
+            Edge? nearest = null;
+            double minDistance = double.MaxValue;
+
+            foreach (var edge in _edges.Values)
+            {
+                double edgeDistance = CalculateDistanceToEdge(param, edge);
+                if (edgeDistance < minDistance)
+                {
+                    minDistance = edgeDistance;
+                    nearest = edge;
+                }
+            }
+
+            return nearest;
         }
 
+        /// <summary>
+        /// Find the vertex nearest to the given parametric point.
+        /// </summary>
+        /// <param name="param">The parametric point to search from</param>
+        /// <returns>The nearest vertex, or null if no vertices exist</returns>
         public Vertex? FindNearestVertex(ParametricPoint param)
         {
-            // TODO: Implement proper proximity test
-            return _vertices.Values.FirstOrDefault();
+            if (!param.IsValid || _vertices.Count == 0)
+                return null;
+
+            Vertex? nearest = null;
+            double minDistance = double.MaxValue;
+
+            foreach (var vertex in _vertices.Values)
+            {
+                double distance = CalculateParametricDistance(param, vertex.Position);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearest = vertex;
+                }
+            }
+
+            return nearest;
+        }
+
+        /// <summary>
+        /// Calculate the minimum distance from a point to an edge.
+        /// Uses point-to-line-segment distance for each segment of the edge.
+        /// </summary>
+        private double CalculateDistanceToEdge(ParametricPoint point, Edge edge)
+        {
+            if (edge.Vertices.Count == 0)
+                return double.MaxValue;
+
+            if (edge.Vertices.Count == 1)
+                return CalculateParametricDistance(point, edge.Vertices[0].Position);
+
+            double minDistance = double.MaxValue;
+
+            // Check distance to each line segment of the edge
+            for (int i = 0; i < edge.Vertices.Count - 1; i++)
+            {
+                var p1 = edge.Vertices[i].Position;
+                var p2 = edge.Vertices[i + 1].Position;
+
+                // Only compute distance for segments on the same face
+                if (p1.FaceId == point.FaceId && p2.FaceId == point.FaceId)
+                {
+                    double segmentDist = PointToSegmentDistance(point, p1, p2);
+                    minDistance = Math.Min(minDistance, segmentDist);
+                }
+                else
+                {
+                    // For cross-face edges, use distance to endpoints
+                    if (p1.FaceId == point.FaceId)
+                        minDistance = Math.Min(minDistance, CalculateParametricDistance(point, p1));
+                    if (p2.FaceId == point.FaceId)
+                        minDistance = Math.Min(minDistance, CalculateParametricDistance(point, p2));
+                }
+            }
+
+            // If no segments on the same face, find nearest vertex on any face
+            if (minDistance == double.MaxValue)
+            {
+                foreach (var vertex in edge.Vertices)
+                {
+                    // Use a large penalty for cross-face distance
+                    double dist = CalculateParametricDistance(point, vertex.Position);
+                    if (point.FaceId != vertex.Position.FaceId)
+                        dist += 1000.0; // Penalty for different face
+                    minDistance = Math.Min(minDistance, dist);
+                }
+            }
+
+            return minDistance;
+        }
+
+        /// <summary>
+        /// Calculate distance from a point to a line segment in parametric space.
+        /// </summary>
+        private double PointToSegmentDistance(ParametricPoint point, ParametricPoint segStart, ParametricPoint segEnd)
+        {
+            double dx = segEnd.U - segStart.U;
+            double dy = segEnd.V - segStart.V;
+            double lengthSquared = dx * dx + dy * dy;
+
+            if (lengthSquared < 1e-12)
+            {
+                // Degenerate segment (start == end)
+                return CalculateParametricDistance(point, segStart);
+            }
+
+            // Project point onto the line, clamped to segment
+            double t = ((point.U - segStart.U) * dx + (point.V - segStart.V) * dy) / lengthSquared;
+            t = Math.Max(0, Math.Min(1, t));
+
+            // Find closest point on segment
+            var closest = new ParametricPoint(
+                point.FaceId,
+                (float)(segStart.U + t * dx),
+                (float)(segStart.V + t * dy)
+            );
+
+            return CalculateParametricDistance(point, closest);
+        }
+
+        /// <summary>
+        /// Calculate Euclidean distance between two parametric points.
+        /// Points on different faces have infinite distance.
+        /// </summary>
+        private double CalculateParametricDistance(ParametricPoint p1, ParametricPoint p2)
+        {
+            if (p1.FaceId != p2.FaceId)
+                return double.MaxValue;
+
+            double du = p2.U - p1.U;
+            double dv = p2.V - p1.V;
+            return Math.Sqrt(du * du + dv * dv);
         }
 
         #endregion
@@ -432,10 +568,16 @@ namespace Latent.Geometry
             var edge = GetEdge(edgeId);
             if (edge == null || !edge.CanRevert) return;
 
+            // Capture old state for undo
+            var oldCurveType = edge.CurveType;
+            var oldDegree = edge.Degree;
+
             // Remove vertices that were added during curve modification for this edge
             var curveModVertices = _vertices.Values
                 .Where(v => v.CreatedBy == VertexOrigin.CurveModification && v.ParentEdgeId == edgeId)
                 .ToList();
+
+            var removedVertexIds = curveModVertices.Select(v => v.Id).ToList();
 
             foreach (var vertex in curveModVertices)
             {
@@ -449,7 +591,10 @@ namespace Latent.Geometry
                 .Select(id => _vertices[id])
                 .ToList();
 
-            // TODO: Register undo for curve type change
+            // Register undo for curve type change
+            var undoEvent = new RevertEdgeCurveTypeUndoEvent(edgeId, oldCurveType, oldDegree, removedVertexIds);
+            RhinoUndoHelper.RegisterUndo(RhinoDoc.ActiveDoc, undoEvent, this);
+
             edge.RevertCurveType();
             InvalidateGeometry();
             OnChanged();
