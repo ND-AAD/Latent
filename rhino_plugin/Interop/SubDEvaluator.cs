@@ -112,6 +112,37 @@ namespace Latent.Interop
         }
 
         /// <summary>
+        /// Project a 3D point onto the limit surface with out parameters.
+        /// </summary>
+        /// <param name="point">The 3D point to project</param>
+        /// <param name="faceId">Output: the face ID</param>
+        /// <param name="u">Output: the U parameter</param>
+        /// <param name="v">Output: the V parameter</param>
+        /// <returns>True if projection succeeded</returns>
+        public bool ProjectPoint(Point3d point, out int faceId, out float u, out float v)
+        {
+            return NativeCore.latent_project_point(
+                _handle,
+                (float)point.X, (float)point.Y, (float)point.Z,
+                out faceId, out u, out v);
+        }
+
+        /// <summary>
+        /// Get the surface normal at a parametric point.
+        /// Returns null if evaluation fails.
+        /// </summary>
+        public Vector3d? GetNormal(int faceId, float u, float v)
+        {
+            if (!NativeCore.latent_evaluate_normal(
+                    _handle, faceId, u, v,
+                    out float nx, out float ny, out float nz))
+            {
+                return null;
+            }
+            return new Vector3d(nx, ny, nz);
+        }
+
+        /// <summary>
         /// Extract control cage from Rhino SubD.
         /// This extracts the control net vertices, face topology, and crease information
         /// using RhinoCommon's SubD API - NO mesh conversion, maintaining exact representation.

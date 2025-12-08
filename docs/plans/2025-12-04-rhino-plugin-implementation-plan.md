@@ -399,11 +399,8 @@ public class SubDEvaluator : IDisposable
 
     public void Initialize(SubD subd)
     {
-        // Extract control cage from Rhino SubD
-        var vertices = ExtractVertices(subd);
-        var faces = ExtractFaces(subd);
-        var creases = ExtractCreases(subd);
-
+        // Extract control cage from Rhino SubD (using ControlNetPoint, not limit surface)
+        var (vertices, faces, faceSizes, creaseEdges, creaseSharpness) = ExtractCage(subd);
         NativeCore.latent_evaluator_initialize(_handle, ...);
     }
 
@@ -414,12 +411,43 @@ public class SubDEvaluator : IDisposable
         return new Point3d(x, y, z);
     }
 
-    public (int faceId, double u, double v) ProjectPoint(Point3d point)
+    /// <summary>
+    /// Project a 3D point onto the limit surface.
+    /// Returns ParametricPoint with IsValid=false if projection fails.
+    /// </summary>
+    public ParametricPoint ProjectPoint(Point3d point)
     {
-        NativeCore.latent_project_point(_handle,
+        if (!NativeCore.latent_project_point(_handle,
+                (float)point.X, (float)point.Y, (float)point.Z,
+                out int faceId, out float u, out float v))
+        {
+            return ParametricPoint.Unset;  // Invalid point
+        }
+        return new ParametricPoint(faceId, u, v);
+    }
+
+    /// <summary>
+    /// Project a 3D point onto the limit surface with out parameters.
+    /// </summary>
+    public bool ProjectPoint(Point3d point, out int faceId, out float u, out float v)
+    {
+        return NativeCore.latent_project_point(_handle,
             (float)point.X, (float)point.Y, (float)point.Z,
-            out int faceId, out float u, out float v);
-        return (faceId, u, v);
+            out faceId, out u, out v);
+    }
+
+    /// <summary>
+    /// Get the surface normal at a parametric point.
+    /// Returns null if evaluation fails.
+    /// </summary>
+    public Vector3d? GetNormal(int faceId, float u, float v)
+    {
+        if (!NativeCore.latent_evaluate_normal(_handle, faceId, u, v,
+                out float nx, out float ny, out float nz))
+        {
+            return null;
+        }
+        return new Vector3d(nx, ny, nz);
     }
 
     public void Dispose()
@@ -581,19 +609,48 @@ public class CurveSampler
 
 **Location**: `rhino_plugin/Interaction/SurfaceConstrainedGetPoint.cs`
 
+**Uses**: `Latent.Interop.ParametricPoint` (shared struct with `Unset` property)
+
 ```csharp
 public class SurfaceConstrainedGetPoint : GetPoint
 {
     private readonly SubD _subd;
     private readonly SubDEvaluator _evaluator;
+    private ParametricPoint _currentParam;  // Uses Latent.Interop.ParametricPoint
+    private Point3d _currentPoint3d = Point3d.Unset;
+    private Vector3d _currentNormal = Vector3d.Unset;
+
+    /// <summary>
+    /// The current parametric position on the surface.
+    /// Updated during mouse move. Check IsValid before using.
+    /// </summary>
+    public ParametricPoint CurrentParametricPosition => _currentParam;
+
+    /// <summary>
+    /// Whether the current parametric position is valid.
+    /// </summary>
+    public bool HasValidPosition => _currentParam.IsValid;
+
+    /// <summary>
+    /// The current 3D point on the surface.
+    /// </summary>
+    public Point3d CurrentSurfacePoint => _currentPoint3d;
+
+    /// <summary>
+    /// The surface normal at the current point.
+    /// </summary>
+    public Vector3d CurrentNormal => _currentNormal;
 
     public SurfaceConstrainedGetPoint(SubD subd, SubDEvaluator evaluator)
     {
-        _subd = subd;
-        _evaluator = evaluator;
+        _subd = subd ?? throw new ArgumentNullException(nameof(subd));
+        _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
 
         // Constrain to SubD surface
         Constrain(_subd, allowPickingPointOffObject: false);
+
+        // Enable dynamic drawing for visual feedback
+        DynamicDraw += OnDynamicDraw;
     }
 
     protected override void OnMouseMove(GetPointMouseEventArgs e)
@@ -601,13 +658,17 @@ public class SurfaceConstrainedGetPoint : GetPoint
         base.OnMouseMove(e);
 
         // Project current point to surface parametric space
-        var (faceId, u, v) = _evaluator.ProjectPoint(e.Point);
-
-        // Store for use by caller
-        CurrentParametricPosition = new ParametricPoint(faceId, u, v);
+        if (_evaluator.ProjectPoint(e.Point, out int faceId, out float u, out float v))
+        {
+            _currentParam = new ParametricPoint(faceId, u, v);
+            _currentPoint3d = _evaluator.EvaluatePoint(faceId, u, v);
+        }
+        else
+        {
+            _currentParam = ParametricPoint.Unset;
+            _currentPoint3d = Point3d.Unset;
+        }
     }
-
-    public ParametricPoint CurrentParametricPosition { get; private set; }
 }
 ```
 
@@ -615,29 +676,63 @@ public class SurfaceConstrainedGetPoint : GetPoint
 
 **Location**: `rhino_plugin/Interaction/VertexDragHandler.cs`
 
+**Uses**: `Latent.Interop.ParametricPoint`, `RegionManager.MoveVertex(Vertex, ParametricPoint)`
+
 ```csharp
 public class VertexDragHandler
 {
     private readonly RegionManager _regionManager;
     private readonly SubDEvaluator _evaluator;
+    private readonly SubD _subd;
+    private readonly DragPreview _preview;
 
-    public void StartDrag(Vertex vertex)
+    public VertexDragHandler(RegionManager regionManager, SubDEvaluator evaluator, SubD subd)
     {
+        _regionManager = regionManager ?? throw new ArgumentNullException(nameof(regionManager));
+        _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
+        _subd = subd ?? throw new ArgumentNullException(nameof(subd));
+        _preview = new DragPreview(evaluator);
+    }
+
+    public DragResult StartDrag(Vertex vertex)
+    {
+        if (vertex == null) throw new ArgumentNullException(nameof(vertex));
+
+        // Check if vertex is pinned
+        if (vertex.IsPinned)
+        {
+            RhinoApp.WriteLine("Cannot drag pinned vertex. Unpin first.");
+            return DragResult.Pinned;
+        }
+
+        var originalParam = vertex.Position;
+        var originalPos3d = _evaluator.EvaluatePoint(
+            originalParam.FaceId, originalParam.U, originalParam.V);
+
         var gp = new SurfaceConstrainedGetPoint(_subd, _evaluator);
-        gp.SetCommandPrompt("Drag vertex to new position");
-        gp.SetBasePoint(vertex.Position, showDistanceInStatusBar: true);
+        gp.SetCommandPrompt("Drag vertex to new position (ESC to cancel)");
+        gp.SetBasePoint(originalPos3d, showDistanceInStatusBar: true);
+
+        // Add dynamic draw for preview
         gp.DynamicDraw += (sender, e) => {
-            // Preview new position
-            e.Display.DrawPoint(gp.CurrentParametricPosition.ToPoint3d(),
-                PointStyle.Circle, 8, Color.Yellow);
+            var previewParam = gp.CurrentParametricPosition;
+            _preview.DrawVertexPreview(e.Display, vertex, previewParam);
         };
 
-        if (gp.Get() == GetResult.Point)
+        var result = gp.Get();
+
+        if (result == GetResult.Point)
         {
-            // Apply the move
-            var newPosition = gp.CurrentParametricPosition;
-            _regionManager.MoveVertex(vertex, newPosition);
+            var newParam = gp.CurrentParametricPosition;
+            if (newParam.IsValid)
+            {
+                // Apply the move through RegionManager (creates undo record)
+                _regionManager.MoveVertex(vertex, newParam);
+                return DragResult.Success;
+            }
         }
+
+        return DragResult.Canceled;
     }
 }
 ```
@@ -689,25 +784,51 @@ public class EdgeDragHandler
 
 **Location**: `rhino_plugin/Interaction/RegionPicker.cs`
 
+**Uses**: `RegionManager.FindRegionContaining(int faceId, float u, float v)` with winding number algorithm
+
 ```csharp
 public class RegionPicker
 {
     private readonly RegionManager _regionManager;
     private readonly SubDEvaluator _evaluator;
+    private readonly SubD _subd;
+
+    public RegionPicker(RegionManager regionManager, SubDEvaluator evaluator, SubD subd)
+    {
+        _regionManager = regionManager ?? throw new ArgumentNullException(nameof(regionManager));
+        _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
+        _subd = subd ?? throw new ArgumentNullException(nameof(subd));
+    }
 
     public Region PickRegion()
     {
-        var gp = new GetPoint();
+        var gp = new SurfaceConstrainedGetPoint(_subd, _evaluator);
         gp.SetCommandPrompt("Pick point on region");
-        gp.Constrain(_subd, allowPickingPointOffObject: false);
+
+        // Add hover highlighting
+        gp.DynamicDraw += (sender, e) => {
+            var param = gp.CurrentParametricPosition;
+            if (!param.IsValid) return;
+
+            var region = _regionManager.FindRegionContaining(
+                param.FaceId, (float)param.U, (float)param.V);
+
+            if (region != null)
+            {
+                DrawRegionHighlight(e.Display, region);
+            }
+        };
 
         if (gp.Get() == GetResult.Point)
         {
-            var point = gp.Point();
-            var (faceId, u, v) = _evaluator.ProjectPoint(point);
-
-            // Find which region contains this parametric point
-            return _regionManager.FindRegionContaining(faceId, u, v);
+            var param = gp.CurrentParametricPosition;
+            if (param.IsValid)
+            {
+                // Find which region contains this parametric point
+                // Uses winding number algorithm for point-in-polygon test
+                return _regionManager.FindRegionContaining(
+                    param.FaceId, (float)param.U, (float)param.V);
+            }
         }
 
         return null;
@@ -869,50 +990,82 @@ public class VisualizationPanel : Panel
 
 **Location**: `rhino_plugin/Geometry/RegionManager.cs`
 
+**Key APIs** (implemented in Phase 3):
+- `MoveVertex(string vertexId, ParametricPoint)` - by ID
+- `MoveVertex(Vertex vertex, ParametricPoint)` - by reference (for Phase 5 drag handlers)
+- `FindRegionContaining(int faceId, float u, float v)` - winding number algorithm
+- `FindRegionContaining(ParametricPoint)` - overload
+
 ```csharp
 public class RegionManager
 {
-    public ObservableCollection<Region> Regions { get; }
-    public ObservableCollection<Vertex> Vertices { get; }
-    public ObservableCollection<Edge> Edges { get; }
+    private readonly Dictionary<string, Region> _regions = new();
+    private readonly Dictionary<string, Edge> _edges = new();
+    private readonly Dictionary<string, Vertex> _vertices = new();
 
-    private readonly UndoStack _undoStack;
+    public IReadOnlyCollection<Region> Regions => _regions.Values;
+    public IReadOnlyCollection<Edge> Edges => _edges.Values;
+    public IReadOnlyCollection<Vertex> Vertices => _vertices.Values;
 
+    public event EventHandler? Changed;
+
+    /// <summary>
+    /// Move a vertex to a new position by vertex ID.
+    /// </summary>
+    public void MoveVertex(string vertexId, ParametricPoint newPosition)
+    {
+        var vertex = GetVertex(vertexId);
+        if (vertex == null) return;
+        MoveVertexInternal(vertex, newPosition);
+    }
+
+    /// <summary>
+    /// Move a vertex to a new position (for drag handlers).
+    /// </summary>
     public void MoveVertex(Vertex vertex, ParametricPoint newPosition)
     {
-        _undoStack.Push(new MoveVertexAction(vertex, vertex.Position, newPosition));
+        if (vertex == null) throw new ArgumentNullException(nameof(vertex));
+        if (!_vertices.ContainsKey(vertex.Id))
+            throw new ArgumentException("Vertex is not managed by this RegionManager");
+        MoveVertexInternal(vertex, newPosition);
+    }
+
+    private void MoveVertexInternal(Vertex vertex, ParametricPoint newPosition)
+    {
+        var oldPosition = vertex.Position;
+
+        // Register undo with Rhino's undo system
+        var undoEvent = new MoveVertexUndoEvent(vertex.Id, oldPosition, newPosition);
+        RhinoUndoHelper.RegisterUndo(RhinoDoc.ActiveDoc, undoEvent, this);
 
         vertex.Position = newPosition;
-        vertex.IsExplicit = true;
+        InvalidateGeometry();
+        OnChanged();
+    }
 
-        // Update connected edges
-        foreach (var edge in vertex.ConnectedEdges)
+    /// <summary>
+    /// Find the region containing the given parametric point.
+    /// Uses winding number algorithm for point-in-polygon test in parametric space.
+    /// </summary>
+    public Region? FindRegionContaining(int faceId, float u, float v)
+    {
+        var testPoint = new ParametricPoint(faceId, u, v);
+        return FindRegionContaining(testPoint);
+    }
+
+    public Region? FindRegionContaining(ParametricPoint param)
+    {
+        if (!param.IsValid) return null;
+
+        foreach (var region in _regions.Values)
         {
-            edge.Invalidate();  // Recalculate curve
+            if (RegionContainsPoint(region, param))
+                return region;
         }
-
-        OnRegionsChanged();
+        return null;
     }
 
-    public void RevertVertex(Vertex vertex)
-    {
-        if (vertex.ImplicitPosition == null)
-            throw new InvalidOperationException("Vertex has no implicit position");
-
-        _undoStack.Push(new RevertVertexAction(vertex, vertex.Position));
-
-        vertex.Position = vertex.ImplicitPosition.Value;
-        vertex.IsExplicit = false;
-
-        OnRegionsChanged();
-    }
-
-    public void Pin(IGeometryElement element)
-    {
-        _undoStack.Push(new PinAction(element, element.IsPinned));
-        element.IsPinned = true;
-        OnRegionsChanged();
-    }
+    // Winding number algorithm implementation...
 }
 ```
 

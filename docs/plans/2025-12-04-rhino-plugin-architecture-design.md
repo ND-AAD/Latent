@@ -68,13 +68,29 @@ Boundary curves are defined mathematically:
 
 ## Data Model
 
+### ParametricPoint (Shared Struct)
+
+```csharp
+// Latent.Interop.ParametricPoint
+public struct ParametricPoint
+{
+    public int FaceId { get; set; }
+    public double U { get; set; }
+    public double V { get; set; }
+    public bool IsValid => FaceId >= 0;
+    public static ParametricPoint Unset => new ParametricPoint(-1, 0, 0);
+}
+```
+
+**Usage**: All phases use `Latent.Interop.ParametricPoint`. Use `ParametricPoint.Unset` for invalid/uninitialized points.
+
 ### Vertex
 
 ```
 Vertex {
     id: string
-    position: (face_id, u, v)           // current parametric position
-    implicit_position: (face_id, u, v) | null  // original lens position
+    position: ParametricPoint           // current parametric position
+    implicit_position: ParametricPoint | null  // original lens position
     created_by: "lens" | "curve_modification" | "user_added"
     is_pinned: bool
 }

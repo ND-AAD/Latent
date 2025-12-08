@@ -122,11 +122,126 @@ namespace Latent.Geometry
             return null;
         }
 
+        /// <summary>
+        /// Find the region containing the given parametric point.
+        /// Uses winding number algorithm for point-in-polygon test in parametric space.
+        /// </summary>
+        /// <param name="faceId">The SubD face ID</param>
+        /// <param name="u">U parameter [0,1]</param>
+        /// <param name="v">V parameter [0,1]</param>
+        /// <returns>The containing region, or null if not found</returns>
+        public Region? FindRegionContaining(int faceId, float u, float v)
+        {
+            var testPoint = new ParametricPoint(faceId, u, v);
+            return FindRegionContaining(testPoint);
+        }
+
+        /// <summary>
+        /// Find the region containing the given parametric point.
+        /// </summary>
+        public Region? FindRegionContaining(ParametricPoint param)
+        {
+            if (!param.IsValid)
+                return null;
+
+            foreach (var region in _regions.Values)
+            {
+                if (RegionContainsPoint(region, param))
+                    return region;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Test if a region contains a parametric point using winding number algorithm.
+        /// </summary>
+        private bool RegionContainsPoint(Region region, ParametricPoint testPoint)
+        {
+            if (region.BoundaryEdges.Count == 0)
+                return false;
+
+            // Collect all boundary vertices in order
+            var boundaryPoints = new List<ParametricPoint>();
+            foreach (var edge in region.BoundaryEdges)
+            {
+                foreach (var vertex in edge.Vertices)
+                {
+                    // Only include vertices on the same face for accurate 2D test
+                    // For cross-face regions, this is an approximation
+                    boundaryPoints.Add(vertex.Position);
+                }
+            }
+
+            if (boundaryPoints.Count < 3)
+                return false;
+
+            // Filter to vertices on the same face as test point for 2D winding number
+            var sameFacePoints = boundaryPoints
+                .Where(p => p.FaceId == testPoint.FaceId)
+                .ToList();
+
+            if (sameFacePoints.Count < 3)
+            {
+                // Region doesn't have enough vertices on this face
+                // Fall back to checking if test point's face has any region vertices
+                return boundaryPoints.Any(p => p.FaceId == testPoint.FaceId);
+            }
+
+            // Winding number algorithm for point-in-polygon
+            return CalculateWindingNumber(testPoint, sameFacePoints) != 0;
+        }
+
+        /// <summary>
+        /// Calculate winding number of a point relative to a polygon.
+        /// Non-zero winding number means point is inside.
+        /// </summary>
+        private int CalculateWindingNumber(ParametricPoint point, List<ParametricPoint> polygon)
+        {
+            int windingNumber = 0;
+            int n = polygon.Count;
+
+            for (int i = 0; i < n; i++)
+            {
+                var p1 = polygon[i];
+                var p2 = polygon[(i + 1) % n];
+
+                if (p1.V <= point.V)
+                {
+                    if (p2.V > point.V)
+                    {
+                        // Upward crossing
+                        if (IsLeft(p1, p2, point) > 0)
+                            windingNumber++;
+                    }
+                }
+                else
+                {
+                    if (p2.V <= point.V)
+                    {
+                        // Downward crossing
+                        if (IsLeft(p1, p2, point) < 0)
+                            windingNumber--;
+                    }
+                }
+            }
+
+            return windingNumber;
+        }
+
+        /// <summary>
+        /// Test if point is left of, on, or right of an infinite line.
+        /// Returns: >0 for left, 0 for on, <0 for right
+        /// </summary>
+        private double IsLeft(ParametricPoint p0, ParametricPoint p1, ParametricPoint p2)
+        {
+            return (p1.U - p0.U) * (p2.V - p0.V) - (p2.U - p0.U) * (p1.V - p0.V);
+        }
+
+        [Obsolete("Use FindRegionContaining instead")]
         public Region? FindRegionAt(ParametricPoint param)
         {
-            // TODO: Implement proper point-in-region test
-            // For now, return first region (placeholder)
-            return _regions.Values.FirstOrDefault();
+            return FindRegionContaining(param);
         }
 
         public Edge? FindNearestEdge(ParametricPoint param)
@@ -204,15 +319,38 @@ namespace Latent.Geometry
 
         #region Mutations
 
+        /// <summary>
+        /// Move a vertex to a new position by vertex ID.
+        /// </summary>
         public void MoveVertex(string vertexId, ParametricPoint newPosition)
         {
             var vertex = GetVertex(vertexId);
             if (vertex == null) return;
 
+            MoveVertexInternal(vertex, newPosition);
+        }
+
+        /// <summary>
+        /// Move a vertex to a new position.
+        /// </summary>
+        public void MoveVertex(Vertex vertex, ParametricPoint newPosition)
+        {
+            if (vertex == null)
+                throw new ArgumentNullException(nameof(vertex));
+
+            // Verify vertex is managed by this RegionManager
+            if (!_vertices.ContainsKey(vertex.Id))
+                throw new ArgumentException("Vertex is not managed by this RegionManager", nameof(vertex));
+
+            MoveVertexInternal(vertex, newPosition);
+        }
+
+        private void MoveVertexInternal(Vertex vertex, ParametricPoint newPosition)
+        {
             var oldPosition = vertex.Position;
 
             // Register undo
-            var undoEvent = new MoveVertexUndoEvent(vertexId, oldPosition, newPosition);
+            var undoEvent = new MoveVertexUndoEvent(vertex.Id, oldPosition, newPosition);
             RhinoUndoHelper.RegisterUndo(RhinoDoc.ActiveDoc, undoEvent, this);
 
             vertex.Position = newPosition;

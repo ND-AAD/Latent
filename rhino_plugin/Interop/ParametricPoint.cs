@@ -19,6 +19,11 @@ namespace Latent.Interop
 
         public bool IsValid => FaceId >= 0;
 
+        /// <summary>
+        /// An invalid/unset parametric point.
+        /// </summary>
+        public static ParametricPoint Unset => new ParametricPoint(-1, 0, 0);
+
         public override string ToString()
         {
             return $"ParametricPoint({FaceId}, {U:F4}, {V:F4})";
