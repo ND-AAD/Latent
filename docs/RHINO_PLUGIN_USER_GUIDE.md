@@ -1,13 +1,18 @@
 # Latent Plugin User Guide
 
+**Version**: 1.0
+**Last Updated**: 2025-12-08
+**Compatibility**: Rhino 8 (macOS/Windows)
+
+---
+
 ## Overview
 
-The Latent Plugin for Rhino 8 enables mathematical decomposition of SubD surfaces
-for ceramic slip-casting mold design. It discovers regions where surfaces can be
-cleanly separated based on curvature analysis and spectral decomposition.
+The Latent Plugin for Rhino 8 enables mathematical decomposition of SubD surfaces for ceramic slip-casting mold design. It discovers regions where surfaces can be cleanly separated based on curvature analysis and spectral decomposition, revealing the inherent mathematical structure of forms.
 
-**Key Concept**: Regions are defined by boundary curves on the exact limit surface,
-maintaining mathematical precision until final fabrication export.
+> *"The seams are not flaws to hide but truths to celebrate"*
+
+**Key Concept**: Regions are defined by boundary curves on the exact limit surface, maintaining mathematical precision until final fabrication export.
 
 ---
 
@@ -345,6 +350,58 @@ Approximation occurs **only** at final G-code/STL export.
 
 ---
 
+## Workflows
+
+### Workflow 1: Quick Analysis
+
+1. Create/import SubD
+2. `LatentAnalyze` -> Differential -> default parameters
+3. Review discovered regions
+4. Done!
+
+### Workflow 2: Iterative Refinement
+
+1. `LatentAnalyze` -> Spectral -> 3 eigenfunctions
+2. Review regions - pin ones you like with `LatentPin`
+3. `LatentAnalyze` -> Differential -> 0.2 tolerance
+4. Unpinned regions update, pinned ones remain
+5. Continue pinning good regions
+6. Repeat with different lenses/parameters
+
+### Workflow 3: Manual Adjustment
+
+1. Run initial analysis
+2. `LatentSelect` -> pick a vertex
+3. Drag vertex to new position (becomes explicit)
+4. Pin the modified element
+5. Reanalyze - your changes are preserved
+
+### Workflow 4: Recovering from Mistakes
+
+1. Made unwanted changes? `LatentSelect` the element
+2. If pinned: `LatentPin` to unpin first
+3. `LatentRevert` to restore lens-computed state
+4. For edges: choose "fully revert" to restore everything
+
+---
+
+## Support
+
+For issues and feature requests:
+- GitHub: https://github.com/ND-AAD/Latent/issues
+
+For architecture documentation:
+- [Architecture Design](plans/2025-12-04-rhino-plugin-architecture-design.md)
+- [Implementation Plan](plans/2025-12-04-rhino-plugin-implementation-plan.md)
+
+---
+
 ## Version History
 
-- **0.1.0** - Initial release with Differential and Spectral lenses
+- **1.0.0** (2025-12-08) - Complete Rhino 8 plugin with all phases implemented
+  - Differential and Spectral lenses
+  - Full state management (implicit/explicit/pinned)
+  - Undo/redo integration with Rhino
+  - Three UI panels (Lens, Geometry, Display)
+  - Comprehensive test suite
+- **0.1.0** - Initial development release
