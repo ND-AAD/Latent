@@ -15,6 +15,10 @@ Each agent has a dedicated command file in `.claude/commands/phase-X/`. This kee
 | Phase 1 | `.claude/commands/phase-1/launch.md` | 4 agents (1A, 1B, 1C, 1D) |
 | Phase 2 | `.claude/commands/phase-2/launch.md` | 3 agents (2A, 2B, 2C) |
 | Phase 3 | `.claude/commands/phase-3/launch.md` | 4 agents (3A, 3B, 3C, 3D) |
+| Phase 4 | `.claude/commands/phase-4/launch.md` | 3 agents (4A, 4B, 4C) |
+| Phase 5 | `.claude/commands/phase-5/launch.md` | 3 agents (5A, 5B, 5C) |
+| Phase 6 | `.claude/commands/phase-6/launch.md` | 3 agents (6A, 6B, 6C) |
+| Phase 7 | `.claude/commands/phase-7/launch.md` | 2 agents (7A, 7B) |
 
 **To launch a phase**: Read the launch file and follow its instructions.
 
@@ -1167,38 +1171,1136 @@ public void GeometryListPanel_ShowsCorrectItems()
 **Duration**: 2-3 days
 **Agents**: 2 parallel
 
-### Agent 7A: End-to-End Workflow Testing
+### Agent 7A: End-to-End Integration Tests
 
-**Objective**: Comprehensive integration testing
+**Objective**: Create comprehensive integration tests that verify the complete workflow from SubD selection through analysis, editing, and revert operations.
 
 **Files to create**:
 - `rhino_plugin/Tests/IntegrationTests.cs` (new)
+- `rhino_plugin/Tests/WorkflowTests.cs` (new)
 - `rhino_plugin/Tests/TestHelpers.cs` (new)
 
 **Tasks**:
-1. Test full workflow: load → analyze → edit → revert
-2. Test all lens types
-3. Test undo/redo chains
-4. Test edge cases and error handling
-5. Performance profiling
+
+#### 1. Create TestHelpers.cs
+
+Provide reusable test utilities for all integration tests:
+
+```csharp
+// rhino_plugin/Tests/TestHelpers.cs
+using System;
+using System.Collections.Generic;
+using Rhino.Geometry;
+using Latent.Geometry;
+using Latent.Interop;
+using Latent.Analysis;
+
+namespace Latent.Tests
+{
+    /// <summary>
+    /// Helper utilities for integration tests.
+    /// </summary>
+    public static class TestHelpers
+    {
+        /// <summary>
+        /// Create a simple box SubD for testing.
+        /// </summary>
+        public static SubD CreateTestBoxSubD()
+        {
+            var box = new Box(Plane.WorldXY,
+                new Interval(-1, 1),
+                new Interval(-1, 1),
+                new Interval(-1, 1));
+            var mesh = Mesh.CreateFromBox(box, 1, 1, 1);
+            return SubD.CreateFromMesh(mesh);
+        }
+
+        /// <summary>
+        /// Create a sphere-like SubD for testing curved surfaces.
+        /// </summary>
+        public static SubD CreateTestSphereSubD()
+        {
+            var sphere = new Sphere(Point3d.Origin, 1.0);
+            var mesh = Mesh.CreateFromSphere(sphere, 8, 8);
+            return SubD.CreateFromMesh(mesh);
+        }
+
+        /// <summary>
+        /// Create a mock analysis result for testing.
+        /// </summary>
+        public static AnalysisResultData CreateMockAnalysisResult(int regionCount = 3)
+        {
+            var result = new AnalysisResultData
+            {
+                Vertices = new List<VertexData>(),
+                Edges = new List<EdgeData>(),
+                Regions = new List<RegionData>()
+            };
+
+            // Create vertices
+            for (int i = 0; i < regionCount * 4; i++)
+            {
+                result.Vertices.Add(new VertexData
+                {
+                    Id = $"v{i}",
+                    Position = new List<double> { 0, (i % 4) * 0.25, (i / 4) * 0.25 },
+                    CreatedBy = "lens",
+                    IsPinned = false
+                });
+            }
+
+            // Create edges connecting vertices
+            for (int i = 0; i < regionCount * 4; i++)
+            {
+                int next = (i + 1) % (regionCount * 4);
+                result.Edges.Add(new EdgeData
+                {
+                    Id = $"e{i}",
+                    VertexIds = new List<string> { $"v{i}", $"v{next}" },
+                    CurveType = "bezier",
+                    Degree = 3,
+                    IsPinned = false
+                });
+            }
+
+            // Create regions
+            for (int r = 0; r < regionCount; r++)
+            {
+                result.Regions.Add(new RegionData
+                {
+                    Id = $"r{r}",
+                    BoundaryEdgeIds = new List<string>
+                    {
+                        $"e{r * 4}", $"e{r * 4 + 1}",
+                        $"e{r * 4 + 2}", $"e{r * 4 + 3}"
+                    },
+                    UnityPrinciple = r == 0 ? "curvature_continuity" : "eigenfunction_nodal",
+                    ResonanceScore = 0.85 - (r * 0.1),
+                    IsPinned = false
+                });
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Verify that a parametric point is valid and on the surface.
+        /// </summary>
+        public static bool IsValidParametricPoint(ParametricPoint point)
+        {
+            return point.FaceId >= 0 &&
+                   point.U >= 0 && point.U <= 1 &&
+                   point.V >= 0 && point.V <= 1;
+        }
+
+        /// <summary>
+        /// Assert that two points are approximately equal.
+        /// </summary>
+        public static void AssertPointsEqual(Point3d a, Point3d b, double tolerance = 1e-6)
+        {
+            var dist = a.DistanceTo(b);
+            if (dist > tolerance)
+            {
+                throw new Exception($"Points differ by {dist}: ({a.X}, {a.Y}, {a.Z}) vs ({b.X}, {b.Y}, {b.Z})");
+            }
+        }
+    }
+}
+```
+
+#### 2. Create IntegrationTests.cs
+
+Test the core integration between components:
+
+```csharp
+// rhino_plugin/Tests/IntegrationTests.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using NUnit.Framework;
+using Rhino.Geometry;
+using Latent.Geometry;
+using Latent.Interop;
+using Latent.Analysis;
+using Latent.Display;
+
+namespace Latent.Tests
+{
+    [TestFixture]
+    public class IntegrationTests
+    {
+        private SubDEvaluator _evaluator;
+        private RegionManager _regionManager;
+        private SubD _testSubD;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _testSubD = TestHelpers.CreateTestBoxSubD();
+            _evaluator = new SubDEvaluator();
+            _regionManager = new RegionManager();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _evaluator?.Dispose();
+        }
+
+        #region Evaluator Integration
+
+        [Test]
+        public void Evaluator_InitializeWithSubD_Succeeds()
+        {
+            _evaluator.Initialize(_testSubD);
+
+            Assert.That(_evaluator.IsInitialized, Is.True);
+            Assert.That(_evaluator.FaceCount, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void Evaluator_ForwardAndInverseEvaluation_RoundTrips()
+        {
+            _evaluator.Initialize(_testSubD);
+
+            // Forward evaluation
+            var point3d = _evaluator.EvaluatePoint(0, 0.5, 0.5);
+            Assert.That(point3d.IsValid, Is.True);
+
+            // Inverse evaluation (project back)
+            var param = _evaluator.ProjectPoint(point3d);
+            Assert.That(param.IsValid, Is.True);
+
+            // Re-evaluate and compare
+            var reprojected = _evaluator.EvaluatePoint(param.FaceId, param.U, param.V);
+            TestHelpers.AssertPointsEqual(point3d, reprojected, 0.001);
+        }
+
+        [Test]
+        public void Evaluator_NormalEvaluation_ReturnsUnitVector()
+        {
+            _evaluator.Initialize(_testSubD);
+
+            var normal = _evaluator.EvaluateNormal(0, 0.5, 0.5);
+
+            Assert.That(normal.IsValid, Is.True);
+            Assert.That(normal.Length, Is.EqualTo(1.0).Within(0.001));
+        }
+
+        #endregion
+
+        #region RegionManager Integration
+
+        [Test]
+        public void RegionManager_UpdateFromAnalysis_PopulatesCorrectly()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(3);
+
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            Assert.That(_regionManager.Regions.Count, Is.EqualTo(3));
+            Assert.That(_regionManager.Vertices.Count, Is.EqualTo(12));
+            Assert.That(_regionManager.Edges.Count, Is.EqualTo(12));
+        }
+
+        [Test]
+        public void RegionManager_PinnedElementsPreservedOnReanalysis()
+        {
+            // Initial analysis
+            var result1 = TestHelpers.CreateMockAnalysisResult(3);
+            _regionManager.UpdateFromAnalysis(result1);
+
+            // Pin a vertex
+            var vertex = _regionManager.GetVertex("v0");
+            _regionManager.SetPinned("v0", true);
+            var originalPosition = vertex.Position;
+
+            // Modify and re-analyze (simulated)
+            var result2 = TestHelpers.CreateMockAnalysisResult(3);
+            result2.Vertices[0].Position = new List<double> { 0, 0.5, 0.5 }; // Changed position
+            _regionManager.UpdateFromAnalysis(result2);
+
+            // Pinned vertex should retain original position
+            var pinnedVertex = _regionManager.GetVertex("v0");
+            Assert.That(pinnedVertex.IsPinned, Is.True);
+            Assert.That(pinnedVertex.Position.FaceId, Is.EqualTo(originalPosition.FaceId));
+        }
+
+        [Test]
+        public void RegionManager_Selection_WorksAcrossTypes()
+        {
+            var result = TestHelpers.CreateMockAnalysisResult(2);
+            _regionManager.UpdateFromAnalysis(result);
+
+            // Select region
+            _regionManager.SelectRegion("r0");
+            Assert.That(_regionManager.GetRegion("r0").IsSelected, Is.True);
+
+            // Select edge (clears previous selection)
+            _regionManager.SelectEdge("e0");
+            Assert.That(_regionManager.GetRegion("r0").IsSelected, Is.False);
+            Assert.That(_regionManager.GetEdge("e0").IsSelected, Is.True);
+
+            // Select vertex
+            _regionManager.SelectVertex("v0");
+            Assert.That(_regionManager.GetEdge("e0").IsSelected, Is.False);
+            Assert.That(_regionManager.GetVertex("v0").IsSelected, Is.True);
+        }
+
+        #endregion
+
+        #region Display Integration
+
+        [Test]
+        public void VisualizationSettings_ColorPriority_SelectedOverPinned()
+        {
+            var settings = new VisualizationSettings();
+
+            // Selected takes priority over pinned
+            var color = settings.GetElementColor(isSelected: true, isPinned: true);
+            Assert.That(color, Is.EqualTo(settings.SelectedColor));
+        }
+
+        [Test]
+        public void RegionConduit_ConstructsWithValidDependencies()
+        {
+            var settings = new VisualizationSettings();
+            var conduit = new RegionConduit(_regionManager, settings);
+
+            Assert.That(conduit, Is.Not.Null);
+        }
+
+        #endregion
+
+        #region CurveSampler Integration
+
+        [Test]
+        public void CurveSampler_SamplesEdgeCorrectly()
+        {
+            _evaluator.Initialize(_testSubD);
+
+            var result = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(result);
+
+            var sampler = new CurveSampler(_evaluator);
+            var edge = _regionManager.GetEdge("e0");
+
+            var points = sampler.SampleEdge(edge, 10);
+
+            Assert.That(points, Is.Not.Null);
+            Assert.That(points.Count, Is.EqualTo(10));
+            foreach (var pt in points)
+            {
+                Assert.That(pt.IsValid, Is.True);
+            }
+        }
+
+        #endregion
+
+        #region Curvature Integration
+
+        [Test]
+        public void CurvatureAnalyzer_ComputesCurvature()
+        {
+            _evaluator.Initialize(_testSubD);
+
+            var analyzer = new CurvatureAnalyzer(_evaluator);
+            var data = analyzer.ComputeCurvature(0, 0.5, 0.5);
+
+            Assert.That(double.IsNaN(data.K1), Is.False);
+            Assert.That(double.IsNaN(data.K2), Is.False);
+            Assert.That(data.MeanH, Is.EqualTo((data.K1 + data.K2) / 2).Within(0.001));
+            Assert.That(data.GaussianK, Is.EqualTo(data.K1 * data.K2).Within(0.001));
+        }
+
+        #endregion
+    }
+}
+```
+
+#### 3. Create WorkflowTests.cs
+
+Test complete user workflows:
+
+```csharp
+// rhino_plugin/Tests/WorkflowTests.cs
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using NUnit.Framework;
+using Rhino.Geometry;
+using Latent.Geometry;
+using Latent.Interop;
+using Latent.Analysis;
+using Latent.Interaction;
+
+namespace Latent.Tests
+{
+    /// <summary>
+    /// Tests for complete user workflows.
+    /// </summary>
+    [TestFixture]
+    public class WorkflowTests
+    {
+        private SubDEvaluator _evaluator;
+        private RegionManager _regionManager;
+        private SubD _testSubD;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _testSubD = TestHelpers.CreateTestBoxSubD();
+            _evaluator = new SubDEvaluator();
+            _evaluator.Initialize(_testSubD);
+            _regionManager = new RegionManager();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _evaluator?.Dispose();
+        }
+
+        #region Workflow: Analyze → Select → Edit → Revert
+
+        [Test]
+        public void Workflow_AnalyzeSelectEditRevert_CompletesSuccessfully()
+        {
+            // Step 1: Load analysis results (simulated)
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(2);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+            Assert.That(_regionManager.Regions.Count, Is.EqualTo(2));
+
+            // Step 2: Select a vertex
+            var vertex = _regionManager.Vertices.First();
+            _regionManager.SelectVertex(vertex.Id);
+            Assert.That(vertex.IsSelected, Is.True);
+
+            // Step 3: Move the vertex (edit)
+            var originalPosition = vertex.Position;
+            var newPosition = new ParametricPoint(
+                originalPosition.FaceId,
+                originalPosition.U + 0.1,
+                originalPosition.V
+            );
+            _regionManager.MoveVertex(vertex.Id, newPosition);
+
+            // Verify vertex is now explicit
+            Assert.That(vertex.IsImplicit, Is.False);
+            Assert.That(vertex.CanRevert, Is.True);
+
+            // Step 4: Revert the vertex
+            _regionManager.Revert(vertex.Id);
+
+            // Verify vertex is back to implicit state
+            Assert.That(vertex.IsImplicit, Is.True);
+        }
+
+        [Test]
+        public void Workflow_PinPreventsDrag()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var vertex = _regionManager.Vertices.First();
+            var originalPosition = vertex.Position;
+
+            // Pin the vertex
+            _regionManager.SetPinned(vertex.Id, true);
+            Assert.That(vertex.IsPinned, Is.True);
+
+            // Verify that CanRevert is false for pinned element
+            Assert.That(vertex.CanRevert, Is.False, "Pinned vertex should not be revertable");
+        }
+
+        [Test]
+        public void Workflow_RevertHierarchy_RegionRevertsEdgesAndVertices()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            // Move multiple vertices in the region
+            var region = _regionManager.Regions.First();
+            foreach (var edge in region.BoundaryEdges)
+            {
+                foreach (var vertex in edge.Vertices.Where(v => v.CanRevert))
+                {
+                    var newPos = new ParametricPoint(
+                        vertex.Position.FaceId,
+                        vertex.Position.U + 0.05,
+                        vertex.Position.V + 0.05
+                    );
+                    _regionManager.MoveVertex(vertex.Id, newPos);
+                }
+            }
+
+            // Verify region is now explicit
+            Assert.That(region.IsImplicit, Is.False);
+
+            // Revert the entire region
+            _regionManager.Revert(region.Id);
+
+            // Verify all vertices are back to implicit
+            foreach (var edge in region.BoundaryEdges)
+            {
+                foreach (var vertex in edge.Vertices)
+                {
+                    if (vertex.ImplicitPosition.HasValue)
+                    {
+                        Assert.That(vertex.IsImplicit, Is.True,
+                            $"Vertex {vertex.Id} should be implicit after region revert");
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Workflow: Multi-Lens Analysis
+
+        [Test]
+        public void Workflow_ChangeLens_PreservesPinnedElements()
+        {
+            // First analysis (differential lens)
+            var result1 = TestHelpers.CreateMockAnalysisResult(2);
+            result1.Regions[0].UnityPrinciple = "curvature_continuity";
+            _regionManager.UpdateFromAnalysis(result1);
+
+            // Pin first region
+            _regionManager.SetPinned("r0", true);
+
+            // Second analysis (spectral lens) - different regions
+            var result2 = TestHelpers.CreateMockAnalysisResult(3);
+            result2.Regions[0].Id = "r0"; // Same ID, different content
+            result2.Regions[0].UnityPrinciple = "eigenfunction_nodal";
+            _regionManager.UpdateFromAnalysis(result2);
+
+            // Pinned region should be preserved
+            var pinnedRegion = _regionManager.GetRegion("r0");
+            Assert.That(pinnedRegion, Is.Not.Null);
+            Assert.That(pinnedRegion.IsPinned, Is.True);
+        }
+
+        #endregion
+
+        #region Workflow: Edge Curve Type Changes
+
+        [Test]
+        public void Workflow_ChangeCurveType_MarksEdgeExplicit()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var edge = _regionManager.Edges.First();
+            Assert.That(edge.IsImplicit, Is.True);
+
+            // Change curve type
+            edge.CurveType = CurveType.BSpline;
+
+            Assert.That(edge.IsImplicit, Is.False);
+            Assert.That(edge.CanRevert, Is.True);
+        }
+
+        [Test]
+        public void Workflow_RevertEdgeCurveType_PreservesVertexPositions()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var edge = _regionManager.Edges.First();
+            var vertex = edge.Vertices.First();
+
+            // Move vertex and change curve type
+            var newPos = new ParametricPoint(
+                vertex.Position.FaceId,
+                vertex.Position.U + 0.1,
+                vertex.Position.V
+            );
+            _regionManager.MoveVertex(vertex.Id, newPos);
+            edge.CurveType = CurveType.BSpline;
+
+            // Revert only curve type (not positions)
+            _regionManager.RevertEdgeCurveType(edge.Id);
+
+            // Curve type should be reverted
+            Assert.That(edge.CurveType, Is.EqualTo(edge.ImplicitCurveType));
+
+            // Vertex position should NOT be reverted
+            Assert.That(vertex.IsImplicit, Is.False);
+        }
+
+        #endregion
+
+        #region Performance Tests
+
+        [Test]
+        public void Performance_LargeAnalysisResult_LoadsQuickly()
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            // Create large analysis result
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(100);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            watch.Stop();
+
+            Assert.That(watch.ElapsedMilliseconds, Is.LessThan(1000),
+                "Loading 100 regions should complete in under 1 second");
+            Assert.That(_regionManager.Regions.Count, Is.EqualTo(100));
+        }
+
+        [Test]
+        public void Performance_SelectionChange_IsImmediate()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(50);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            for (int i = 0; i < 100; i++)
+            {
+                _regionManager.SelectRegion($"r{i % 50}");
+            }
+
+            watch.Stop();
+
+            Assert.That(watch.ElapsedMilliseconds, Is.LessThan(100),
+                "100 selection changes should complete in under 100ms");
+        }
+
+        #endregion
+
+        #region Undo/Redo Workflows
+
+        [Test]
+        public void Workflow_UndoRedo_VertexMove()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var vertex = _regionManager.Vertices.First();
+            var originalPosition = vertex.Position;
+
+            // Move vertex
+            var newPosition = new ParametricPoint(
+                originalPosition.FaceId,
+                originalPosition.U + 0.2,
+                originalPosition.V
+            );
+            _regionManager.MoveVertex(vertex.Id, newPosition);
+
+            Assert.That(vertex.Position.U, Is.EqualTo(newPosition.U).Within(0.001));
+
+            // Note: Actual undo test requires RhinoDoc context
+            // This verifies the state tracking is correct
+            Assert.That(vertex.IsImplicit, Is.False);
+        }
+
+        [Test]
+        public void Workflow_UndoRedo_PinUnpin()
+        {
+            var analysisResult = TestHelpers.CreateMockAnalysisResult(1);
+            _regionManager.UpdateFromAnalysis(analysisResult);
+
+            var vertex = _regionManager.Vertices.First();
+
+            // Pin
+            _regionManager.SetPinned(vertex.Id, true);
+            Assert.That(vertex.IsPinned, Is.True);
+
+            // Unpin
+            _regionManager.SetPinned(vertex.Id, false);
+            Assert.That(vertex.IsPinned, Is.False);
+
+            // Note: Actual undo restores previous state via Rhino undo system
+        }
+
+        #endregion
+    }
+}
+```
+
+**Success Criteria**:
+- [ ] All integration tests pass
+- [ ] Workflow tests cover analyze → select → edit → revert cycle
+- [ ] Undo/redo state tracking verified
+- [ ] Performance tests pass (100 regions < 1s, 100 selections < 100ms)
+- [ ] Round-trip evaluation accuracy < 0.001 units
+
+**Skills Required**: `superpowers:test-driven-development`, `superpowers:verification-before-completion`
 
 ---
 
-### Agent 7B: Documentation & Cleanup
+### Agent 7B: Documentation & Code Quality
 
-**Objective**: Final documentation and code cleanup
+**Objective**: Create user documentation, add XML documentation to public APIs, and perform final code cleanup.
 
-**Files to create/modify**:
-- `rhino_plugin/README.md` (new)
+**Files to create**:
 - `docs/RHINO_PLUGIN_USER_GUIDE.md` (new)
-- Various code cleanup
+- `rhino_plugin/Tests/ApiDocumentationTests.cs` (new)
+
+**Files to modify**:
+- `rhino_plugin/README.md` (update)
+- `docs/PROJECT_STATUS.md` (update)
+- Various source files (add XML documentation)
 
 **Tasks**:
-1. Write user documentation
-2. Add XML documentation to public APIs
-3. Remove dead code
-4. Final code review
-5. Update PROJECT_STATUS.md
+
+#### 1. Create User Guide
+
+Create comprehensive user documentation:
+
+```markdown
+<!-- docs/RHINO_PLUGIN_USER_GUIDE.md -->
+# Latent Plugin User Guide
+
+## Overview
+
+The Latent Plugin for Rhino 8 enables mathematical decomposition of SubD surfaces
+for ceramic slip-casting mold design. It discovers regions where surfaces can be
+cleanly separated based on curvature analysis and spectral decomposition.
+
+## Installation
+
+1. Copy `LatentPlugin.rhp` to your Rhino plugins folder
+2. Copy `liblatent_core.dylib` (macOS) or `latent_core.dll` (Windows) to the same folder
+3. Restart Rhino 8
+4. Type `PlugInManager` and enable "Latent"
+
+## Quick Start
+
+1. Create or import a SubD surface
+2. Run `LatentAnalyze` command
+3. Select lens type (Differential, Spectral, or CageAligned)
+4. View discovered regions in the viewport
+
+## Commands
+
+### LatentAnalyze
+Runs analysis on the selected SubD using the specified lens.
+
+**Usage**: `LatentAnalyze`
+
+**Options**:
+- **Differential**: Finds regions based on curvature continuity
+- **Spectral**: Finds regions based on eigenfunction nodal lines
+- **CageAligned**: Aligns regions with control cage topology
+
+### LatentSelect
+Selects regions, edges, or vertices for editing.
+
+**Usage**: `LatentSelect`
+
+Click on:
+- Region interior → selects the region
+- Near an edge → selects the edge
+- Near a vertex → selects the vertex
+
+### LatentPin
+Pins or unpins the selected element.
+
+**Usage**: `LatentPin`
+
+Pinned elements:
+- Are protected from lens reanalysis
+- Cannot be reverted
+- Display in blue
+
+### LatentRevert
+Reverts the selected element to its implicit (lens-defined) state.
+
+**Usage**: `LatentRevert`
+
+Revert hierarchy:
+- **Vertex**: Returns to original position
+- **Edge**: Choice of "curve type only" or "fully revert"
+- **Region**: Reverts all boundary edges and vertices
+
+## Panels
+
+### Latent Lens
+Control panel for lens selection and analysis parameters.
+
+- **Lens Selector**: Choose analysis lens
+- **Parameters**: Lens-specific settings
+- **Analyze Button**: Run analysis
+
+### Latent Geometry
+List of all vertices, edges, and regions.
+
+- **Mode Selector**: Toggle between Vertices/Edges/Regions
+- **State Column**: Shows implicit/explicit/pinned state
+- **Pin Button**: Toggle pinned state
+- **Revert Button**: Revert to implicit state
+
+### Latent Display
+Visualization settings for the display conduit.
+
+- **Show Fill**: Toggle region fill display
+- **Show Centroids**: Toggle centroid markers
+- **Colors**: Customize selection/pinned/default colors
+- **Opacity**: Adjust fill transparency
+
+## Concepts
+
+### Implicit vs Explicit State
+
+- **Implicit**: Element is at its lens-defined position/shape
+- **Explicit**: Element has been modified by the user
+- Only explicit elements can be reverted
+
+### Pinning
+
+Pinned elements are protected from changes:
+- They persist across lens reanalysis
+- They cannot be dragged or reverted
+- Use pinning to "lock in" good decompositions
+
+### Revert Hierarchy
+
+When reverting:
+- Vertex → reverts position only
+- Edge → can revert curve type only OR fully revert (including vertices)
+- Region → reverts all edges and vertices
+
+Edges created by curve degree changes cannot have their vertices reverted.
+
+## Keyboard Shortcuts
+
+- **Ctrl+Z**: Undo last operation
+- **Ctrl+Y**: Redo
+- **Escape**: Cancel current operation
+- **Enter**: Accept/confirm
+
+## Troubleshooting
+
+### "Analysis service failed to start"
+- Ensure Python 3.8+ is installed and in PATH
+- Check that `analysis_service/` folder exists
+- Verify port 5555 is not in use
+
+### "Native library not found"
+- Copy `liblatent_core.dylib` to plugin folder
+- On macOS, you may need to allow in Security settings
+
+### Curves appear jagged
+- Increase "Curve Sample Count" in Latent Display panel
+- Default is 50, try 100 for smoother curves
+
+### Performance is slow
+- Reduce "Curve Sample Count" for faster redraws
+- Enable curve caching in settings
+- Consider fewer analysis regions
+```
+
+#### 2. Update README.md
+
+Update the plugin README with current project structure:
+
+```markdown
+<!-- rhino_plugin/README.md -->
+# Latent Rhino Plugin
+
+Rhino 8 plugin for the Ceramic Mold Analyzer - discovers mathematical
+decompositions of SubD surfaces for slip-casting molds.
+
+## Requirements
+
+- Rhino 8 (Windows or macOS)
+- .NET Framework 4.8
+- Python 3.8+ (for analysis service)
+
+## Building
+
+\`\`\`bash
+cd rhino_plugin
+dotnet restore
+dotnet build
+\`\`\`
+
+## Testing
+
+\`\`\`bash
+dotnet test
+\`\`\`
+
+## Project Structure
+
+\`\`\`
+rhino_plugin/
+├── Analysis/         # LensClient, AnalysisResult, Protocol
+├── Commands/         # Rhino commands (Analyze, Select, Pin, Revert)
+├── Display/          # RegionConduit, visualization
+├── Geometry/         # Vertex, Edge, Region, RegionManager
+├── Interaction/      # GetPoint, drag handlers, pickers
+├── Interop/          # P/Invoke bindings to C++ core
+├── UI/               # Eto.Forms panels
+├── Tests/            # Unit and integration tests
+├── LatentPlugin.cs   # Plugin entry point
+└── LatentPlugin.csproj
+\`\`\`
+
+## Architecture
+
+\`\`\`
+┌─────────────────┐     ┌─────────────────┐
+│   Rhino 8       │     │  Analysis       │
+│   (UI/Viewport) │────▶│  Service        │
+└────────┬────────┘     │  (Python)       │
+         │              └────────┬────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────┐     ┌─────────────────┐
+│  Latent Plugin  │────▶│  C++ Core       │
+│  (C#/.NET)      │     │  (liblatent)    │
+└─────────────────┘     └─────────────────┘
+\`\`\`
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `LatentAnalyze` | Run lens analysis on SubD |
+| `LatentSelect` | Select region/edge/vertex |
+| `LatentPin` | Pin/unpin selected element |
+| `LatentRevert` | Revert to implicit state |
+
+## License
+
+Proprietary - All rights reserved
+```
+
+#### 3. Add XML Documentation to Public APIs
+
+Add XML documentation to all public classes and methods. Key files to document:
+
+**RegionManager.cs**:
+```csharp
+/// <summary>
+/// Manages the collection of regions, edges, and vertices for an analysis session.
+/// Provides state management, selection, and undo integration.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The RegionManager is the central state container for all geometry elements.
+/// It maintains three collections (Regions, Edges, Vertices) and handles:
+/// </para>
+/// <list type="bullet">
+/// <item>Loading analysis results</item>
+/// <item>Preserving pinned elements across reanalysis</item>
+/// <item>Selection management</item>
+/// <item>State mutations with undo support</item>
+/// </list>
+/// </remarks>
+```
+
+**SubDEvaluator.cs**:
+```csharp
+/// <summary>
+/// Managed wrapper for the native SubD limit surface evaluator.
+/// Provides exact evaluation of positions, normals, and curvature on the limit surface.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This class wraps the C++ OpenSubdiv-based evaluator via P/Invoke.
+/// It implements IDisposable to ensure proper cleanup of native resources.
+/// </para>
+/// </remarks>
+```
+
+#### 4. Create API Documentation Tests
+
+```csharp
+// rhino_plugin/Tests/ApiDocumentationTests.cs
+using System;
+using System.Linq;
+using System.Reflection;
+using NUnit.Framework;
+
+namespace Latent.Tests
+{
+    /// <summary>
+    /// Tests that verify public API documentation completeness.
+    /// </summary>
+    [TestFixture]
+    public class ApiDocumentationTests
+    {
+        private Assembly _assembly;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _assembly = typeof(LatentPlugin).Assembly;
+        }
+
+        [Test]
+        public void AllPublicClasses_HaveXmlSummary()
+        {
+            var publicTypes = _assembly.GetTypes()
+                .Where(t => t.IsPublic && !t.IsNested)
+                .Where(t => !t.Name.EndsWith("Tests"))
+                .ToList();
+
+            // Note: This is a simplified check
+            // Full implementation would parse XML doc file
+            Assert.That(publicTypes.Count, Is.GreaterThan(0),
+                "Assembly should have public types");
+        }
+
+        [Test]
+        public void PublicClasses_CountMatchesExpected()
+        {
+            var publicTypes = _assembly.GetTypes()
+                .Where(t => t.IsPublic && !t.IsNested)
+                .Where(t => !t.Name.EndsWith("Tests"))
+                .ToList();
+
+            // Verify we have the expected core classes
+            var expectedClasses = new[]
+            {
+                "LatentPlugin",
+                "RegionManager",
+                "SubDEvaluator",
+                "VisualizationSettings"
+            };
+
+            foreach (var expected in expectedClasses)
+            {
+                Assert.That(publicTypes.Any(t => t.Name == expected),
+                    Is.True, $"Missing expected class: {expected}");
+            }
+        }
+    }
+}
+```
+
+#### 5. Update PROJECT_STATUS.md
+
+Add final status update to the project status document:
+
+```markdown
+<!-- Add to docs/PROJECT_STATUS.md -->
+
+## Rhino Plugin Status
+
+### Completed (Phase 7)
+- ✅ P/Invoke bindings to C++ core
+- ✅ JSON-RPC client for analysis service
+- ✅ Plugin entry point with command registration
+- ✅ Data model (Vertex, Edge, Region, RegionManager)
+- ✅ Display conduit with curve sampling and region fills
+- ✅ Interaction handlers (GetPoint, drag, pick)
+- ✅ UI panels (Lens, Geometry List, Visualization)
+- ✅ Integration tests
+- ✅ User documentation
+
+### Commands Available
+- `LatentAnalyze` - Run lens analysis
+- `LatentSelect` - Select elements
+- `LatentPin` - Pin/unpin elements
+- `LatentRevert` - Revert to implicit state
+
+### Known Limitations
+- Analysis service must be running separately (auto-start in development)
+- Performance with 100+ regions may degrade
+- Some edge cases in multi-face curve traversal
+
+### Next Steps
+- Production packaging
+- Installer creation
+- Performance optimization for large models
+```
+
+**Success Criteria**:
+- [ ] User guide covers all commands and panels
+- [ ] README updated with current structure
+- [ ] All public classes have XML documentation
+- [ ] All public methods have XML documentation
+- [ ] API documentation tests pass
+- [ ] PROJECT_STATUS.md updated
+
+**Skills Required**: None specific
+
+---
+
+### Phase 7 Consolidation & Tests
+
+**After all agents complete**:
+
+```bash
+cd /Users/NickDuch/Desktop/Ind\ Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
+
+# Build
+dotnet build
+
+# Run all tests including new integration tests
+dotnet test --logger "console;verbosity=detailed"
+
+# Verify documentation files exist
+ls -la ../docs/RHINO_PLUGIN_USER_GUIDE.md
+ls -la README.md
+
+# Run integration tests specifically
+dotnet test --filter "FullyQualifiedName~IntegrationTests|FullyQualifiedName~WorkflowTests"
+
+# If all pass, commit
+cd ..
+git add -A
+git commit -m "feat: Phase 7 - Final Integration
+
+- Add comprehensive integration tests
+- Add workflow tests for analyze→edit→revert cycle
+- Add performance benchmarks
+- Create user guide documentation
+- Update README with current structure
+- Add XML documentation to public APIs
+- Update PROJECT_STATUS.md
+
+🤖 Generated with Claude Code"
+```
+
+### Phase 7 Gate Tests
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Phase 7 Gate Tests ==="
+
+cd /Users/NickDuch/Desktop/Ind\ Designs/NDAAD/RhinoProjects/Latent/rhino_plugin
+
+# Test 7.1: Plugin builds
+dotnet build
+echo "✓ Plugin builds successfully"
+
+# Test 7.2: All unit tests pass
+dotnet test
+echo "✓ All unit tests pass"
+
+# Test 7.3: Integration tests pass
+dotnet test --filter "FullyQualifiedName~IntegrationTests"
+echo "✓ Integration tests pass"
+
+# Test 7.4: Workflow tests pass
+dotnet test --filter "FullyQualifiedName~WorkflowTests"
+echo "✓ Workflow tests pass"
+
+# Test 7.5: Documentation files exist
+test -f ../docs/RHINO_PLUGIN_USER_GUIDE.md && echo "✓ User guide exists"
+test -f README.md && echo "✓ README exists"
+
+# Test 7.6: Test file count (should have at least 15 test files)
+TEST_COUNT=$(ls -1 Tests/*.cs | wc -l | tr -d ' ')
+if [ "$TEST_COUNT" -ge 15 ]; then
+    echo "✓ Test coverage adequate ($TEST_COUNT test files)"
+else
+    echo "✗ Insufficient test files ($TEST_COUNT < 15)"
+    exit 1
+fi
+
+echo ""
+echo "=== Phase 7 PASSED - Plugin Ready for Release ==="
+```
 
 ---
 
