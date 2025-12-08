@@ -7,8 +7,30 @@ using Latent.Interop;
 namespace Latent.Geometry
 {
     /// <summary>
-    /// An edge (boundary curve) in the region graph.
+    /// A boundary curve edge in the region graph.
+    /// Edges connect vertices and define region boundaries on the SubD limit surface.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each edge maintains:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Ordered list of control vertex IDs</description></item>
+    /// <item><description>Curve type (Linear, Bezier, BSpline)</description></item>
+    /// <item><description>Curve degree (determines number of control points)</description></item>
+    /// <item><description>Implicit curve type (original from lens analysis)</description></item>
+    /// </list>
+    /// <para>
+    /// Edges support two revert modes:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>RevertCurveType: Restore original curve type/degree, keep vertex positions</description></item>
+    /// <item><description>Full revert: Restore both curve type and all vertex positions</description></item>
+    /// </list>
+    /// <para>
+    /// Version tracking enables cache invalidation when the edge geometry changes.
+    /// </para>
+    /// </remarks>
     public class Edge : IGeometryElement
     {
         public string Id { get; }

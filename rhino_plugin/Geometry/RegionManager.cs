@@ -10,8 +10,31 @@ using Latent.Interop;
 namespace Latent.Geometry
 {
     /// <summary>
-    /// Manages regions, edges, and vertices for the current analysis session.
+    /// Manages the collection of regions, edges, and vertices for an analysis session.
+    /// Provides state management, selection tracking, pin/unpin operations, and undo integration.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The RegionManager is the central state container for all geometry elements.
+    /// It maintains three collections (Regions, Edges, Vertices) and handles:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Loading analysis results from the Python service</description></item>
+    /// <item><description>Preserving pinned elements across reanalysis</description></item>
+    /// <item><description>Selection management (single selection, mutually exclusive)</description></item>
+    /// <item><description>State mutations (move, pin, revert) with undo support</description></item>
+    /// <item><description>Change notification via the Changed event</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// var manager = new RegionManager();
+    /// manager.UpdateFromAnalysis(analysisResult);
+    /// manager.SelectVertex("v0");
+    /// manager.SetPinned("v0", true);
+    /// manager.MoveVertex("v1", newPosition);
+    /// </code>
+    /// </example>
     public class RegionManager
     {
         private readonly Dictionary<string, Region> _regions = new();

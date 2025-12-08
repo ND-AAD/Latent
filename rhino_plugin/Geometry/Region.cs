@@ -6,8 +6,27 @@ using Rhino.Geometry;
 namespace Latent.Geometry
 {
     /// <summary>
-    /// A region bounded by edges.
+    /// A surface region bounded by a closed loop of edges.
+    /// Regions represent decomposed portions of the SubD surface for mold fabrication.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each region contains:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Boundary edges forming a closed loop</description></item>
+    /// <item><description>Unity principle describing mathematical coherence</description></item>
+    /// <item><description>Resonance score (0.0-1.0) indicating quality of decomposition</description></item>
+    /// </list>
+    /// <para>
+    /// Regions cache computed geometry (centroid, bounding box) for performance.
+    /// Call <see cref="InvalidateCache"/> after modifying boundary edges.
+    /// </para>
+    /// <para>
+    /// A region is considered "implicit" if all its boundary edges remain at their
+    /// original lens-computed positions and curve types.
+    /// </para>
+    /// </remarks>
     public class Region : IGeometryElement
     {
         public string Id { get; }

@@ -15,8 +15,28 @@ namespace Latent.Geometry
     }
 
     /// <summary>
-    /// A vertex in the region graph.
+    /// A control point vertex in the region boundary graph.
+    /// Vertices define positions on the SubD limit surface using parametric coordinates.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each vertex stores both its current position and an optional implicit position
+    /// (the original position determined by lens analysis). This enables:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Tracking whether the vertex has been user-modified</description></item>
+    /// <item><description>Reverting to the original lens-computed position</description></item>
+    /// <item><description>Pinning to protect from reanalysis</description></item>
+    /// </list>
+    /// <para>
+    /// Vertices can have different origins:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Lens: Created by lens analysis</description></item>
+    /// <item><description>CurveModification: Added when changing curve degree</description></item>
+    /// <item><description>UserAdded: Explicitly created by user</description></item>
+    /// </list>
+    /// </remarks>
     public class Vertex : IGeometryElement
     {
         public string Id { get; }

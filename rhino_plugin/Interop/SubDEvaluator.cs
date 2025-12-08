@@ -6,8 +6,32 @@ using Rhino.Geometry;
 namespace Latent.Interop
 {
     /// <summary>
-    /// Managed wrapper for the native SubD evaluator.
+    /// Managed wrapper for the native SubD limit surface evaluator.
+    /// Provides exact evaluation of positions, normals, and curvature on the limit surface.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This class wraps the C++ OpenSubdiv-based evaluator via P/Invoke.
+    /// It implements IDisposable to ensure proper cleanup of native resources.
+    /// </para>
+    /// <para>
+    /// Key operations:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>Forward evaluation: (face_id, u, v) → Point3d</description></item>
+    /// <item><description>Inverse evaluation: Point3d → (face_id, u, v)</description></item>
+    /// <item><description>Normal evaluation: (face_id, u, v) → Vector3d</description></item>
+    /// <item><description>Curvature computation: (face_id, u, v) → (κ₁, κ₂, H, K)</description></item>
+    /// </list>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using var evaluator = new SubDEvaluator();
+    /// evaluator.Initialize(subd);
+    /// var point = evaluator.EvaluatePoint(0, 0.5, 0.5);
+    /// var param = evaluator.ProjectPoint(point);
+    /// </code>
+    /// </example>
     public class SubDEvaluator : IDisposable
     {
         private IntPtr _handle;

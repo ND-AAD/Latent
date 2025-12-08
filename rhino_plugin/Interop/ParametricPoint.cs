@@ -2,8 +2,23 @@
 namespace Latent.Interop
 {
     /// <summary>
-    /// A point in SubD parametric space (face_id, u, v).
+    /// Represents a point in SubD parametric space as (face_id, u, v).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Parametric points are the fundamental coordinate type for positions on
+    /// the SubD limit surface. They consist of:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>FaceId: Index of the control cage face</description></item>
+    /// <item><description>U: Parameter in [0,1] within the face</description></item>
+    /// <item><description>V: Parameter in [0,1] within the face</description></item>
+    /// </list>
+    /// <para>
+    /// Use <see cref="Unset"/> to represent an invalid or uninitialized point.
+    /// Check <see cref="IsValid"/> before using a parametric point.
+    /// </para>
+    /// </remarks>
     public struct ParametricPoint
     {
         public int FaceId { get; set; }

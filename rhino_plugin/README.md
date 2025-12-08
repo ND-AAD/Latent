@@ -1,132 +1,121 @@
-# Latent - Rhino Plugin
+# Latent Rhino Plugin
 
-Rhino 8 plugin for ceramic mold analysis - discovers mathematical decompositions of SubD surfaces.
+Rhino 8 plugin for the Ceramic Mold Analyzer - discovers mathematical
+decompositions of SubD surfaces for slip-casting molds.
+
+## Requirements
+
+- Rhino 8 (Windows or macOS)
+- .NET Framework 4.8 or .NET 6+
+- Python 3.8+ (for analysis service)
+
+## Building
+
+```bash
+cd rhino_plugin
+dotnet restore
+dotnet build
+```
+
+## Testing
+
+```bash
+dotnet test
+```
+
+## Project Structure
+
+```
+rhino_plugin/
+├── Analysis/           # LensClient, AnalysisResult, Protocol
+│   ├── LensClient.cs
+│   ├── AnalysisResult.cs
+│   └── Protocol.cs
+├── Commands/           # Rhino commands
+│   ├── LatentAnalyzeCommand.cs
+│   ├── LatentSelectCommand.cs
+│   ├── LatentPinCommand.cs
+│   └── LatentRevertCommand.cs
+├── Display/            # RegionConduit, visualization
+│   ├── RegionConduit.cs
+│   ├── CurveSampler.cs
+│   ├── CurveCache.cs
+│   └── VisualizationSettings.cs
+├── Geometry/           # Vertex, Edge, Region, RegionManager
+│   ├── IGeometryElement.cs
+│   ├── Vertex.cs
+│   ├── Edge.cs
+│   ├── Region.cs
+│   └── RegionManager.cs
+├── Interaction/        # GetPoint, drag handlers, pickers
+│   ├── SurfaceConstrainedGetPoint.cs
+│   ├── VertexDragHandler.cs
+│   ├── EdgeDragHandler.cs
+│   └── RegionPicker.cs
+├── Interop/            # P/Invoke bindings to C++ core
+│   ├── NativeCore.cs
+│   ├── SubDEvaluator.cs
+│   ├── SurfaceCurve.cs
+│   └── ParametricPoint.cs
+├── UI/                 # Eto.Forms panels
+│   ├── GeometryListPanel.cs
+│   ├── LensPanel.cs
+│   └── VisualizationPanel.cs
+├── Tests/              # Unit and integration tests
+│   ├── TestHelpers.cs
+│   ├── IntegrationTests.cs
+│   ├── WorkflowTests.cs
+│   └── ...
+├── LatentPlugin.cs     # Plugin entry point
+└── Latent.csproj
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         RHINO 8                                  │
-│                                                                  │
-│  Latent Plugin (C#)                                              │
-│  ├── Commands: LatentAnalyze, LatentEdit, LatentPin, LatentExport│
-│  ├── EditMode: Constrained boundary manipulation                 │
-│  ├── Display: Conduit for boundaries and region overlays        │
-│  └── Communication: HTTP client to analysis engine              │
-│                                                                  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTP
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    ANALYSIS ENGINE                               │
-│                                                                  │
-│  server.py (Python HTTP wrapper)                                 │
-│  ├── cpp_core.SubDEvaluator (OpenSubdiv)                        │
-│  ├── DifferentialLens (curvature analysis)                       │
-│  ├── SpectralLens (coming soon)                                  │
-│  └── FlowLens (coming soon)                                      │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────┐     ┌─────────────────┐
+│   Rhino 8       │     │  Analysis       │
+│   (UI/Viewport) │────▶│  Service        │
+└────────┬────────┘     │  (Python)       │
+         │              └────────┬────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────┐     ┌─────────────────┐
+│  Latent Plugin  │────▶│  C++ Core       │
+│  (C#/.NET)      │     │  (liblatent)    │
+└─────────────────┘     └─────────────────┘
 ```
 
-## Setup
-
-### 1. Build the Plugin
-
-```bash
-cd rhino_plugin/Latent
-dotnet build
-```
-
-### 2. Install in Rhino
-
-Copy `Latent.rhp` to Rhino plugins folder:
-- macOS: `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/`
-- Windows: `%APPDATA%\McNeel\Rhinoceros\8.0\Plug-ins\`
-
-Or drag-and-drop onto Rhino window.
-
-### 3. Start Analysis Engine
-
-```bash
-# From project root
-python server.py --port 5000
-```
-
-## Usage
-
-### Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `LatentAnalyze` | Run analysis on Form, generate boundaries |
-| `LatentEdit` | Enter edit mode for boundary manipulation |
-| `LatentPin` | Pin/unpin selected region or boundary |
-| `LatentExport` | Generate mold geometry (coming soon) |
+| `LatentAnalyze` | Run lens analysis on selected SubD |
+| `LatentSelect` | Select region/edge/vertex |
+| `LatentPin` | Pin/unpin selected element |
+| `LatentRevert` | Revert element to implicit state |
 
-### Workflow
+## Panels
 
-1. **Create Form in Rhino** - Model your SubD surface
+| Panel | Description |
+|-------|-------------|
+| Latent Geometry | List of vertices, edges, regions with state management |
+| Latent Lens | Lens selection and analysis parameters |
+| Latent Display | Visualization settings (colors, fills, samples) |
 
-2. **Run Analysis**
-   ```
-   > LatentAnalyze
-   Select Form: [click SubD]
-   Lens: Differential
-   ```
+## Key Classes
 
-3. **Edit Boundaries**
-   ```
-   > LatentEdit
-   [click boundary to select]
-   [drag to move - constrained to surface]
-   [right-click for options]
-   ESC to exit
-   ```
+- **RegionManager**: Central state container for all geometry elements
+- **SubDEvaluator**: Managed wrapper for native limit surface evaluation
+- **ParametricPoint**: Coordinate type for positions on the limit surface
+- **RegionConduit**: DisplayConduit for rendering boundaries and regions
 
-4. **Pin Good Regions**
-   - Select region/boundary
-   - Use `Pin` option to preserve across re-analysis
+## Documentation
 
-5. **Iterate**
-   - Run `LatentAnalyze` again with different lens
-   - Pinned elements preserved
+- [User Guide](../docs/RHINO_PLUGIN_USER_GUIDE.md)
+- [Architecture Design](../docs/plans/2025-12-04-rhino-plugin-architecture-design.md)
+- [Implementation Plan](../docs/plans/2025-12-04-rhino-plugin-implementation-plan.md)
 
-6. **Export**
-   ```
-   > LatentExport
-   [generates mold geometry]
-   ```
+## License
 
-## Development
-
-### Project Structure
-
-```
-Latent/
-├── Latent.csproj           # Project file
-├── LatentPlugin.cs         # Plugin entry point
-├── Commands/
-│   ├── LatentAnalyzeCommand.cs
-│   ├── LatentEditCommand.cs
-│   └── ...
-├── EditMode/
-│   └── BoundaryEditHandler.cs
-├── Display/
-│   └── LatentDisplayConduit.cs
-├── State/
-│   ├── LatentStateManager.cs
-│   └── ParametricTypes.cs
-└── Communication/
-    └── AnalysisClient.cs
-```
-
-### Key Concepts
-
-**Form**: The original SubD from Rhino. Immutable. Never modified.
-
-**Boundaries**: The result of analysis - parting surfaces that divide the Form into mold pieces. These are what we edit.
-
-**Parametric representation**: Boundaries are stored as `(face_id, u, v)` points, not 3D curves. The display curves are generated from these on demand.
-
-**Constrained editing**: When user drags a boundary, mouse position is projected onto the Form surface. The boundary stays on the surface.
+Proprietary - All rights reserved
