@@ -134,17 +134,29 @@ namespace Latent.Geometry
     {
         /// <summary>
         /// Register an undo event with Rhino.
-        /// TODO: Implement proper Rhino undo integration.
-        /// For now, this is a placeholder that stores the undo event for future implementation.
+        /// The handler is called on both undo and redo operations.
+        /// CreatedByRedo indicates whether this is a redo (true) or undo (false) operation.
         /// </summary>
         public static void RegisterUndo(RhinoDoc doc, LatentUndoEvent undoEvent, RegionManager manager)
         {
-            // TODO: Integrate with Rhino's undo system
-            // The RhinoCommon API for custom undo requires further investigation
-            // Possible approaches:
-            // 1. Use doc.BeginUndoRecord/EndUndoRecord around operations
-            // 2. Implement custom undo record class
-            // 3. Use internal undo stack maintained by RegionManager
+            if (doc == null) return;
+
+            doc.AddCustomUndoEvent(
+                undoEvent.Description,
+                (sender, e) =>
+                {
+                    // CreatedByRedo is true when this handler is being called due to a redo operation
+                    if (e.CreatedByRedo)
+                    {
+                        undoEvent.Redo(manager);
+                    }
+                    else
+                    {
+                        undoEvent.Undo(manager);
+                    }
+                    doc.Views.Redraw();
+                }
+            );
         }
     }
 }
