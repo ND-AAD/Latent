@@ -42,6 +42,10 @@ Thumbs.db
 
 # Sprint documentation (internal development artifacts)
 docs/reference/api_sprint/
+.Archive/sprint_2025_11/
+
+# Agent command files (internal automation)
+.claude/commands/phase-*/
 
 # .NET build artifacts
 obj/
