@@ -409,10 +409,114 @@ namespace Latent.Geometry
             var edge = GetEdge(edgeId);
             if (edge == null || !edge.CanRevert) return;
 
+            // Remove vertices that were added during curve modification for this edge
+            var curveModVertices = _vertices.Values
+                .Where(v => v.CreatedBy == VertexOrigin.CurveModification && v.ParentEdgeId == edgeId)
+                .ToList();
+
+            foreach (var vertex in curveModVertices)
+            {
+                _vertices.Remove(vertex.Id);
+                edge.VertexIds.Remove(vertex.Id);
+            }
+
+            // Rebuild vertex references on edge
+            edge.Vertices = edge.VertexIds
+                .Where(id => _vertices.ContainsKey(id))
+                .Select(id => _vertices[id])
+                .ToList();
+
             // TODO: Register undo for curve type change
             edge.RevertCurveType();
             InvalidateGeometry();
             OnChanged();
+        }
+
+        /// <summary>
+        /// Change the curve type of an edge, potentially adding control vertices.
+        /// </summary>
+        /// <param name="edgeId">The edge to modify</param>
+        /// <param name="newCurveType">The new curve type</param>
+        /// <param name="newDegree">The new degree</param>
+        /// <returns>List of vertex IDs added (if any)</returns>
+        public List<string> ChangeEdgeCurveType(string edgeId, CurveType newCurveType, int newDegree)
+        {
+            var edge = GetEdge(edgeId);
+            if (edge == null) return new List<string>();
+
+            var addedVertexIds = new List<string>();
+
+            // If increasing degree, we may need to add control points
+            int currentPointCount = edge.VertexIds.Count;
+            int requiredPoints = newDegree + 1; // For Bezier: degree + 1 control points
+
+            if (requiredPoints > currentPointCount)
+            {
+                // Add intermediate vertices
+                int pointsToAdd = requiredPoints - currentPointCount;
+
+                // Interpolate positions along the edge
+                for (int i = 0; i < pointsToAdd; i++)
+                {
+                    float t = (float)(i + 1) / (pointsToAdd + 1);
+                    var newPosition = InterpolateEdgePosition(edge, t);
+
+                    var vertexId = $"{edgeId}_cv{i}";
+                    var newVertex = new Vertex(
+                        vertexId,
+                        newPosition,
+                        newPosition,
+                        VertexOrigin.CurveModification,
+                        edgeId // Track parent edge
+                    );
+
+                    _vertices[vertexId] = newVertex;
+                    addedVertexIds.Add(vertexId);
+
+                    // Insert into edge's vertex list at appropriate position
+                    int insertIndex = Math.Min((int)((currentPointCount - 1) * t) + 1, edge.VertexIds.Count);
+                    edge.VertexIds.Insert(insertIndex, vertexId);
+                }
+
+                // Rebuild vertex references
+                edge.Vertices = edge.VertexIds
+                    .Where(id => _vertices.ContainsKey(id))
+                    .Select(id => _vertices[id])
+                    .ToList();
+            }
+
+            edge.CurveType = newCurveType;
+            edge.Degree = newDegree;
+            edge.IncrementVersion();
+
+            InvalidateGeometry();
+            OnChanged();
+
+            return addedVertexIds;
+        }
+
+        /// <summary>
+        /// Interpolate a position along an edge based on parameter t.
+        /// </summary>
+        private ParametricPoint InterpolateEdgePosition(Edge edge, float t)
+        {
+            if (edge.Vertices.Count < 2)
+                return edge.Vertices.FirstOrDefault()?.Position ?? new ParametricPoint(0, 0, 0);
+
+            // Simple linear interpolation for now
+            int segmentIndex = (int)(t * (edge.Vertices.Count - 1));
+            segmentIndex = Math.Min(segmentIndex, edge.Vertices.Count - 2);
+
+            var v1 = edge.Vertices[segmentIndex];
+            var v2 = edge.Vertices[segmentIndex + 1];
+
+            float localT = (t * (edge.Vertices.Count - 1)) - segmentIndex;
+
+            return new ParametricPoint(
+                v1.Position.FaceId,  // Assume same face for simplicity
+                v1.Position.U + (v2.Position.U - v1.Position.U) * localT,
+                v1.Position.V + (v2.Position.V - v1.Position.V) * localT
+            );
         }
 
         public void RevertEdgeFully(string edgeId)

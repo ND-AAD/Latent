@@ -43,6 +43,11 @@ namespace Latent
         /// </summary>
         public ServiceManager ServiceManager { get; private set; }
 
+        /// <summary>
+        /// Visualization settings for display conduit.
+        /// </summary>
+        public Display.VisualizationSettings VisualizationSettings { get; private set; }
+
         public LatentPlugin()
         {
             Instance = this;
@@ -57,6 +62,34 @@ namespace Latent
                 ServiceManager = new ServiceManager();
                 LensClient = new LensClient(serviceManager: ServiceManager);
 
+                // Initialize and load visualization settings
+                VisualizationSettings = new Display.VisualizationSettings();
+                VisualizationSettings.Load(this);
+
+                // Register Lens Panel
+                Rhino.UI.Panels.RegisterPanel(
+                    this,
+                    typeof(UI.LensPanel),
+                    "Latent Lens",
+                    System.Drawing.SystemIcons.Application
+                );
+
+                // Register Geometry List Panel
+                Rhino.UI.Panels.RegisterPanel(
+                    this,
+                    typeof(UI.GeometryListPanel),
+                    "Latent Geometry",
+                    System.Drawing.SystemIcons.Application
+                );
+
+                // Register Visualization Panel
+                Rhino.UI.Panels.RegisterPanel(
+                    this,
+                    typeof(UI.VisualizationPanel),
+                    "Latent Display",
+                    System.Drawing.SystemIcons.Application
+                );
+
                 RhinoApp.WriteLine("Latent Plugin loaded successfully.");
                 return LoadReturnCode.Success;
             }
@@ -69,6 +102,9 @@ namespace Latent
 
         protected override void OnShutdown()
         {
+            // Save visualization settings
+            VisualizationSettings?.Save(this);
+
             // Clean up resources
             Evaluator?.Dispose();
             LensClient?.Dispose();

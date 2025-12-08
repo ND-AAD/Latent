@@ -140,6 +140,60 @@ namespace Latent.Tests
             Assert.IsTrue(vertex!.IsPinned);
         }
 
+        [Test]
+        public void ChangeEdgeCurveType_AddsVerticesWhenDegreeIncreases()
+        {
+            var data = CreateTestAnalysisData();
+            _manager.UpdateFromAnalysis(data);
+
+            // Increase degree from 3 to 5 (requires more control points)
+            var addedIds = _manager.ChangeEdgeCurveType("e1", CurveType.Bezier, 5);
+
+            // Should add vertices to make 6 control points (degree+1)
+            Assert.That(addedIds.Count, Is.GreaterThan(0));
+
+            var edge = _manager.GetEdge("e1");
+            Assert.That(edge!.Degree, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void ChangeEdgeCurveType_AddedVertices_HaveParentEdgeId()
+        {
+            var data = CreateTestAnalysisData();
+            _manager.UpdateFromAnalysis(data);
+
+            var addedIds = _manager.ChangeEdgeCurveType("e1", CurveType.Bezier, 5);
+
+            foreach (var id in addedIds)
+            {
+                var vertex = _manager.GetVertex(id);
+                Assert.IsNotNull(vertex);
+                Assert.That(vertex!.CreatedBy, Is.EqualTo(VertexOrigin.CurveModification));
+                Assert.That(vertex.ParentEdgeId, Is.EqualTo("e1"));
+            }
+        }
+
+        [Test]
+        public void RevertEdgeCurveType_RemovesCurveModificationVertices()
+        {
+            var data = CreateTestAnalysisData();
+            _manager.UpdateFromAnalysis(data);
+
+            // Add curve modification vertices
+            var addedIds = _manager.ChangeEdgeCurveType("e1", CurveType.Bezier, 5);
+            Assert.That(addedIds.Count, Is.GreaterThan(0));
+
+            // Revert the edge
+            _manager.RevertEdgeCurveType("e1");
+
+            // Curve modification vertices should be removed
+            foreach (var id in addedIds)
+            {
+                var vertex = _manager.GetVertex(id);
+                Assert.IsNull(vertex, $"Vertex {id} should have been removed on revert");
+            }
+        }
+
         private AnalysisResultData CreateTestAnalysisData()
         {
             return new AnalysisResultData

@@ -26,16 +26,24 @@ namespace Latent.Geometry
         public bool IsPinned { get; set; }
         public bool IsSelected { get; set; }
 
+        /// <summary>
+        /// For vertices created by curve modification, the ID of the parent edge.
+        /// Used for navigation when user tries to revert a curve-modification vertex.
+        /// </summary>
+        public string? ParentEdgeId { get; set; }
+
         public Vertex(
             string id,
             ParametricPoint position,
             ParametricPoint? implicitPosition = null,
-            VertexOrigin createdBy = VertexOrigin.Lens)
+            VertexOrigin createdBy = VertexOrigin.Lens,
+            string? parentEdgeId = null)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Position = position;
             ImplicitPosition = implicitPosition ?? position;
             CreatedBy = createdBy;
+            ParentEdgeId = parentEdgeId;
         }
 
         /// <summary>
